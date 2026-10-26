@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import SCHEDULER_HOURS
 from app.db import init_db
-from app.routes import dev, digest, games
+from app.routes import chat, dev, digest, games
 from app.services import ai, devfeed, games as games_service
 
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Personal Dashboard")
 
 app.include_router(games.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 app.include_router(dev.router, prefix="/api")
 app.include_router(digest.router, prefix="/api")
 

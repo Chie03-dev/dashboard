@@ -175,3 +175,39 @@ async function addWish(){
 }
 
 Promise.all([loadGames(),loadDev(),loadDigest(),loadWishlist(),loadDeals(),loadWeather()]);
+const chatMessages=[];
+function appendChat(role, text){
+  const log=document.getElementById('chatLog');
+  if(!log) return;
+  const div=document.createElement('div');
+  div.className='chat-msg chat-msg--'+role;
+  div.textContent=text;
+  log.appendChild(div);
+  log.scrollTop=log.scrollHeight;
+}
+async function sendChat(){
+  const input=document.getElementById('chatInput');
+  const btn=document.getElementById('chatSend');
+  const v=input.value.trim();
+  if(!v) return;
+  input.value='';
+  appendChat('user', v);
+  chatMessages.push({role:'user', content:v});
+  btn.disabled=true;
+  try {
+    const r=await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messages:chatMessages})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.detail||r.statusText);
+    const reply=data.reply||'No response';
+    appendChat('assistant', reply);
+    chatMessages.push({role:'assistant', content:reply});
+  } catch(e){
+    appendChat('assistant', 'Error: '+e.message);
+  } finally {
+    btn.disabled=false;
+  }
+}
+const chatSendBtn=document.getElementById('chatSend');
+if(chatSendBtn){ chatSendBtn.addEventListener('click', sendChat); }
+const chatInputEl=document.getElementById('chatInput');
+if(chatInputEl){ chatInputEl.addEventListener('keydown', e=>{ if(e.key==='Enter') sendChat(); }); }
