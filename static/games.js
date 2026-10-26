@@ -31,6 +31,16 @@ async function loadGames(){
   const cats=[...new Set(allGames.map(g=>g.category).filter(Boolean))].sort();
   const sel=document.getElementById('catFilter');
   sel.innerHTML='<option value="">All</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  // apply saved defaults
+  try {
+    const ds = localStorage.getItem('defaultGameSort');
+    if (ds) document.getElementById('gameSort').value = ds;
+    const dc = localStorage.getItem('defaultGameCat');
+    if (dc) {
+      const opt = [...sel.options].find(o=>o.value===dc);
+      if (opt) sel.value = dc;
+    }
+  } catch(e){}
   renderGames();
 }
 function renderGames(){

@@ -1,4 +1,5 @@
-async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(r.statusText); return r.json(); }
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsNum(k){ const v=lsGet(k); if(v===null||v==='') return undefined; const n=Number(v); return isNaN(n)?undefined:n; }
 
 function countdown(end){
   if(!end) return '';
@@ -124,7 +125,10 @@ async function loadDeals(){
 async function loadWeather(){
   document.getElementById('weather').innerHTML='<div class="skeleton skeleton--line"></div>';
   try {
-    const w=await fetchJSON('/api/weather');
+    const lat = lsGet('weatherLat');
+    const lon = lsGet('weatherLon');
+    const qs = (lat && lon) ? `?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}` : '';
+    const w=await fetchJSON('/api/weather'+qs);
     const code=w.code!=null?` · code ${esc(w.code)}`:'';
     document.getElementById('weather').innerHTML = w.temperature!=null
       ? `<div class="weather__temp">${esc(w.temperature)}°C</div><div class="weather__meta">Wind ${esc(w.wind)} km/h${code}</div>`
@@ -188,6 +192,13 @@ async function addWish(){
 
 Promise.all([loadGames(),loadDev(),loadDigest(),loadWishlist(),loadDeals(),loadWeather()]);
 const chatMessages=[];
+try {
+  if (localStorage.getItem('clearChatHistory') === 'true') {
+    localStorage.removeItem('clearChatHistory');
+    const log=document.getElementById('chatLog');
+    if(log) log.innerHTML='';
+  }
+} catch(e){}
 function appendChat(role, text){
   const log=document.getElementById('chatLog');
   if(!log) return;
@@ -206,8 +217,21 @@ async function sendChat(){
   appendChat('user', v);
   chatMessages.push({role:'user', content:v});
   btn.disabled=true;
+  const controller = new AbortController();
+  const timeoutSec = lsNum('requestTimeout') || 60;
+  const to = setTimeout(() => controller.abort(), timeoutSec * 1000);
   try {
-    const r=await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messages:chatMessages, model: localStorage.getItem('chatModel') || undefined})});
+    const body = {
+      messages: chatMessages,
+      model: lsGet('llmModel') || lsGet('chatModel') || undefined,
+      base_url: lsGet('llmBaseUrl') || undefined,
+      api_key: lsGet('llmApiKey') || undefined,
+      temperature: lsNum('llmTemperature'),
+      max_tokens: lsNum('llmMaxTokens'),
+      system_prompt: lsGet('systemPrompt') || undefined,
+      timeout: timeoutSec,
+    };
+    const r=await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:controller.signal});
     const data=await r.json();
     if(!r.ok) throw new Error(data.detail||r.statusText);
     const reply=data.reply||'No response';
@@ -216,10 +240,11 @@ async function sendChat(){
   } catch(e){
     appendChat('assistant', 'Error: '+e.message);
   } finally {
+    clearTimeout(to);
     btn.disabled=false;
   }
 }
-const chatSendBtn=document.getElementById('chatSend');
-if(chatSendBtn){ chatSendBtn.addEventListener('click', sendChat); }
+const chatClearBtn=document.getElementById('chatClear');
+if(chatClearBtn){ chatClearBtn.addEventListener('click', ()=>{ chatMessages.length=0; const log=document.getElementById('chatLog'); if(log) log.innerHTML=''; }); }
 const chatInputEl=document.getElementById('chatInput');
 if(chatInputEl){ chatInputEl.addEventListener('keydown', e=>{ if(e.key==='Enter') sendChat(); }); }
