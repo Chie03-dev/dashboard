@@ -290,6 +290,41 @@ select:focus, input:focus { outline: none; border-color: var(--accent); box-shad
 .chat-form { display: flex; gap: .5rem; }
 .chat-form input { flex: 1; }
 
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 30;
+}
+.menu-overlay[hidden] { display: none; }
+.side-menu {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 260px;
+  max-width: 80vw;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 40;
+  padding: 1rem;
+  transform: translateX(-100%);
+  transition: transform .22s ease;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  overflow: auto;
+}
+.side-menu.is-open { transform: translateX(0); }
+.side-menu__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+.side-menu a {
+  color: var(--text);
+  text-decoration: none;
+  padding: .6rem .75rem;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.side-menu a:hover { background: var(--card); color: var(--accent-2); }
+.site-title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
+
 .view-all {
   display: inline-block;
   margin-top: .75rem;
