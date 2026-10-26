@@ -12,14 +12,23 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="brand">
-      <a class="btn btn--ghost" href="/static/index.html">← Dashboard</a>
-
-    </div>
+    <button id="menuToggle" class="btn btn--ghost" type="button" aria-label="Open menu" aria-expanded="false">&#9776;</button>
   </header>
+  <div id="menuOverlay" class="menu-overlay" hidden></div>
+  <nav id="sideMenu" class="side-menu" aria-hidden="true">
+    <div class="side-menu__head">
+      <h2>Menu</h2>
+      <button id="menuClose" class="btn btn--ghost" type="button" aria-label="Close menu">&times;</button>
+    </div>
+    <a href="/static/index.html">Dashboard</a>
+    <a href="/static/games.html">Free Games</a>
+    <a href="/static/deals.html">Discounts</a>
+    <a href="/static/news.html">Game News</a>
+    <a href="/static/settings.html">Settings</a>
+  </nav>
   <main class="page">
     <div id="deals" class="grid" aria-live="polite"></div>
   </main>
-  <script src="/static/deals.js"></script>
+  <script src="/static/menu.js"></script><script src="/static/deals.js"></script>
 </body>
 </html>
