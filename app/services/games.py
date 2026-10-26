@@ -1,0 +1,312 @@
+import logging
+from datetime import datetime, timedelta, timezone
+
+import httpx
+
+from app.config import FETCH_TIMEOUT
+from app.db import get_conn, now_iso
+
+logger = logging.getLogger(__name__)
+
+GAMERPOWER_URL = "https://www.gamerpower.com/api/giveaways?platform=pc&sort-by=date"
+EPIC_URL = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
+
+
+def _parse_gp_date(s):
+    if not s or s == "N/A":
+        return None
+    try:
+        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    except Exception:
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return dt.isoformat()
+        except Exception:
+            return None
+
+
+def fetch_gamerpower():
+    out = []
+    try:
+        with httpx.Client(timeout=FETCH_TIMEOUT) as c:
+            r = c.get(GAMERPOWER_URL)
+            r.raise_for_status()
+            data = r.json()
+        if not isinstance(data, list):
+            return out
+        for item in data:
+            try:
+                if item.get("type") not in (None, "Game"):
+                    pass
+                out.append(
+                    {
+                        "source": "gamerpower",
+                        "external_id": str(item.get("id")),
+                        "title": item.get("title", ""),
+                        "platform": item.get("platforms", ""),
+                        "url": item.get("open_giveaway_url") or item.get("gamerpower_url"),
+                        "thumbnail": item.get("thumbnail") or item.get("image"),
+                        "category": item.get("type") or "Game",
+                        "end_date": _parse_gp_date(item.get("end_date")),
+                    }
+                )
+            except Exception as e:
+                logger.warning("gamerpower item parse error: %s", e)
+    except Exception as e:
+        logger.error("gamerpower fetch failed: %s", e)
+    return out
+
+
+def _epic_slug(el):
+    for key in ("catalogNs",):
+        mappings = (el.get(key) or {}).get("mappings") or []
+        for m in mappings:
+            if m.get("pageSlug"):
+                return m["pageSlug"]
+    for m in el.get("offerMappings") or []:
+        if m.get("pageSlug"):
+            return m["pageSlug"]
+    return None
+
+
+def _flatten_promos(groups):
+    out = []
+    for g in groups or []:
+        for po in (g.get("promotionalOffers") or []):
+            out.append(po)
+    return out
+
+
+def fetch_epic():
+    out = []
+    try:
+        with httpx.Client(timeout=FETCH_TIMEOUT) as c:
+            r = c.get(EPIC_URL)
+            r.raise_for_status()
+            data = r.json()
+        elements = (((data.get("data") or {}).get("Catalog") or {}).get("searchStore") or {}).get("elements") or []
+        for el in elements:
+            try:
+                price = ((el.get("price") or {}).get("totalPrice") or {}).get("discountPrice")
+                price = 0 if price is None else price
+                promos = el.get("promotions") or {}
+                current = _flatten_promos(promos.get("promotionalOffers"))
+                upcoming = _flatten_promos(promos.get("upcomingPromotionalOffers"))
+                has_100 = any(
+                    (po.get("discountSetting") or {}).get("discountPercentage") == 100
+                    for po in (current + upcoming)
+                )
+                if not (price == 0 or has_100):
+                    continue
+
+                # pick end date
+                end = None
+                hundred_current = [po for po in current if (po.get("discountSetting") or {}).get("discountPercentage") == 100]
+                hundred_upcoming = [po for po in upcoming if (po.get("discountSetting") or {}).get("discountPercentage") == 100]
+                candidates = hundred_current or (current if price == 0 else []) or hundred_upcoming
+                if candidates:
+                    end = candidates[0].get("endDate")
+                if not end:
+                    for lo in (el.get("price") or {}).get("lineOffers") or []:
+                        for r in lo.get("appliedRules") or []:
+                            if r.get("endDate"):
+                                end = r["endDate"]
+                                break
+                        if end:
+                            break
+                if not end:
+                    end = el.get("expiryDate")
+                if end:
+                    try:
+                        dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+                        end = dt.isoformat()
+                    except Exception:
+                        pass
+
+                slug = _epic_slug(el)
+                url = f"https://store.epicgames.com/en-US/p/{slug}" if slug else None
+                thumbnail = None
+                for ki in el.get("keyImages") or []:
+                    if ki.get("type") in ("OfferImageTall", "Thumbnail", "OfferImageWide"):
+                        thumbnail = ki.get("url")
+                        break
+                offer_type = el.get("offerType") or "BASE_GAME"
+                category_map = {"BASE_GAME": "Game", "ADD_ON": "DLC", "BUNDLE": "Bundle"}
+                category = category_map.get(offer_type, offer_type)
+                out.append(
+                    {
+                        "source": "epic",
+                        "external_id": str(el.get("id")),
+                        "title": el.get("title", ""),
+                        "platform": "PC (Epic)",
+                        "url": url,
+                        "thumbnail": thumbnail,
+                        "category": category,
+                        "end_date": end,
+                    }
+                )
+            except Exception as e:
+                logger.warning("epic item parse error: %s", e)
+    except Exception as e:
+        logger.error("epic fetch failed: %s", e)
+    return out
+
+
+def fetch_all_games():
+    return fetch_gamerpower() + fetch_epic()
+
+
+def _is_new(source, external_id):
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM games WHERE source=? AND external_id=?",
+            (source, external_id),
+        ).fetchone()
+        return row is None
+    finally:
+        conn.close()
+
+
+def sync_games():
+    from app.services import notifier
+
+    items = fetch_all_games()
+    conn = get_conn()
+    new_items = []
+    try:
+        for g in items:
+            row = conn.execute(
+                "SELECT id FROM games WHERE source=? AND external_id=?",
+                (g["source"], g["external_id"]),
+            ).fetchone()
+            if row is None:
+                conn.execute(
+                    "INSERT INTO games (source, external_id, title, platform, url, thumbnail, category, end_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (g["source"], g["external_id"], g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], now_iso()),
+                )
+                new_items.append(g)
+            else:
+                conn.execute(
+                    "UPDATE games SET title=?, platform=?, url=?, thumbnail=?, category=?, end_date=? WHERE source=? AND external_id=?",
+                    (g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], g["source"], g["external_id"]),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+    for g in new_items:
+        try:
+            notifier.notify_new_game(g)
+        except Exception as e:
+            logger.error("notify_new_game failed: %s", e)
+        # mark notified
+        try:
+            conn = get_conn()
+            conn.execute(
+                "UPDATE games SET notified_at=? WHERE source=? AND external_id=?",
+                (now_iso(), g["source"], g["external_id"]),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error("mark notified failed: %s", e)
+
+    # wishlist matches
+    try:
+        conn = get_conn()
+        names = [r["name"] for r in conn.execute("SELECT name FROM wishlist").fetchall()]
+        if names:
+            rows = conn.execute(
+                "SELECT source, external_id, title, platform, url, end_date, wishlist_notified_at FROM games"
+            ).fetchall()
+            for row in rows:
+                if row["wishlist_notified_at"]:
+                    continue
+                title_l = (row["title"] or "").lower()
+                if any(n.lower() in title_l for n in names):
+                    game = {
+                        "source": row["source"],
+                        "external_id": row["external_id"],
+                        "title": row["title"],
+                        "platform": row["platform"],
+                        "url": row["url"],
+                        "end_date": row["end_date"],
+                    }
+                    notifier.notify_wishlist(game)
+                    conn.execute(
+                        "UPDATE games SET wishlist_notified_at=? WHERE source=? AND external_id=?",
+                        (now_iso(), row["source"], row["external_id"]),
+                    )
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error("wishlist matching failed: %s", e)
+
+    # reminders
+    try:
+        _send_reminders()
+    except Exception as e:
+        logger.error("reminders failed: %s", e)
+
+    return items
+
+
+fetch_games = sync_games
+
+
+def _parse_end(end):
+    if not end:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def _send_reminders():
+    from app.services import notifier
+    from app.config import REMINDER_HOURS
+
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT source, external_id, title, platform, url, end_date, reminder_sent_at FROM games WHERE reminder_sent_at IS NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    now = datetime.now(timezone.utc)
+    window = now + timedelta(hours=REMINDER_HOURS)
+    for row in rows:
+        end = _parse_end(row["end_date"])
+        if end is None:
+            continue
+        if now < end <= window:
+            game = {
+                "source": row["source"],
+                "external_id": row["external_id"],
+                "title": row["title"],
+                "platform": row["platform"],
+                "url": row["url"],
+                "end_date": row["end_date"],
+            }
+            try:
+                notifier.notify_reminder(game)
+            except Exception as e:
+                logger.error("notify_reminder failed: %s", e)
+                continue
+            try:
+                conn = get_conn()
+                conn.execute(
+                    "UPDATE games SET reminder_sent_at=? WHERE source=? AND external_id=?",
+                    (now_iso(), row["source"], row["external_id"]),
+                )
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                logger.error("mark reminder failed: %s", e)
