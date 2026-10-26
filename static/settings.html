@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Settings — Personal Dashboard</title>
+  <title>Settings - Personal Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -27,14 +27,104 @@
     <a href="/static/settings.html">Settings</a>
   </nav>
   <main class="page">
-    <section class="widget" style="max-width:520px;">
-      <header class="widget__head"><h2 class="widget__title">Chat model</h2></header>
-      <label class="field"><span>Model</span>
-        <input id="modelInput" type="text" placeholder="auto" />
-      </label>
-      <button id="saveSettings" class="btn btn--primary" type="button" style="margin-top:.75rem;">Save</button>
-      <p id="settingsStatus" class="note" style="margin-top:.5rem;"></p>
-    </section>
+    <div class="settings-grid">
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">LLM connectivity</h2></header>
+        <label class="field"><span>Base URL</span>
+          <input id="baseUrlInput" type="text" placeholder="http://localhost:3001/v1" />
+        </label>
+        <label class="field"><span>API key</span>
+          <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" />
+        </label>
+        <label class="field"><span>Model</span>
+          <input id="modelInput" type="text" placeholder="auto" />
+        </label>
+        <div class="settings-actions">
+          <button id="testSettings" class="btn" type="button">Test Connection</button>
+          <button id="saveSettings" class="btn btn--primary" type="button">Save</button>
+        </div>
+        <p id="settingsStatus" class="note" style="margin-top:.5rem;"></p>
+        <div id="testResult" class="note" style="margin-top:.25rem;white-space:pre-wrap;"></div>
+      </section>
+
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">Chat parameters</h2></header>
+        <label class="field"><span>Temperature</span>
+          <input id="temperatureInput" type="number" step="0.1" min="0" max="2" placeholder="0.7" />
+        </label>
+        <label class="field"><span>Max tokens</span>
+          <input id="maxTokensInput" type="number" min="1" placeholder="512" />
+        </label>
+        <label class="field"><span>System prompt / persona</span>
+          <textarea id="systemPromptInput" rows="4" placeholder="You are a helpful assistant."></textarea>
+        </label>
+        <label class="field"><span>Request timeout (seconds)</span>
+          <input id="requestTimeoutInput" type="number" min="5" max="300" placeholder="60" />
+        </label>
+        <div class="settings-actions">
+          <button id="clearChatHistory" class="btn" type="button">Clear chat history</button>
+        </div>
+      </section>
+
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">Weather location</h2></header>
+        <label class="field"><span>Latitude</span>
+          <input id="weatherLatInput" type="number" step="0.0001" placeholder="40.7128" />
+        </label>
+        <label class="field"><span>Longitude</span>
+          <input id="weatherLonInput" type="number" step="0.0001" placeholder="-74.0060" />
+        </label>
+      </section>
+
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">Appearance</h2></header>
+        <label class="field"><span>Theme</span>
+          <select id="themeInput">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label class="field"><span>Compactness</span>
+          <select id="compactnessInput">
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+          </select>
+        </label>
+        <label class="field"><span>Widget min height (px)</span>
+          <input id="widgetHeightInput" type="number" min="0" placeholder="0" />
+        </label>
+        <label class="settings-checklist"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label>
+      </section>
+
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">Dashboard</h2></header>
+        <label class="field"><span>Default game sort</span>
+          <select id="defaultGameSortInput">
+            <option value="created">Newest</option>
+            <option value="platform">Platform</option>
+            <option value="end">Ending soon</option>
+            <option value="title">Title</option>
+          </select>
+        </label>
+        <label class="field"><span>Default game category</span>
+          <input id="defaultGameCatInput" type="text" placeholder="All" />
+        </label>
+        <div class="field"><span>Show widgets</span>
+          <div class="settings-checklist" id="widgetVisibility"></div>
+        </div>
+      </section>
+
+      <section class="widget settings-section">
+        <header class="widget__head"><h2 class="widget__title">Data</h2></header>
+        <div class="settings-actions">
+          <button id="exportSettings" class="btn" type="button">Export JSON</button>
+          <button id="importSettings" class="btn" type="button">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" hidden />
+          <button id="resetSettings" class="btn" type="button">Reset to defaults</button>
+        </div>
+        <p id="dataStatus" class="note" style="margin-top:.5rem;"></p>
+      </section>
+    </div>
   </main>
   <script src="/static/menu.js"></script><script src="/static/settings.js"></script>
 </body>
