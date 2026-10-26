@@ -12,14 +12,22 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="brand">
-      <div>
-        <h1>Personal Dashboard</h1>
-        <p class="brand__sub">Free games, deals, news, and daily signal</p>
-      </div>
-    </div>
+    <button id="menuToggle" class="btn btn--ghost" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
+    <h1 class="site-title">Dashboard</h1>
     <button id="refresh" class="btn btn--primary" type="button">Refresh</button>
   </header>
+  <div id="menuOverlay" class="menu-overlay" hidden></div>
+  <nav id="sideMenu" class="side-menu" aria-hidden="true">
+    <div class="side-menu__head">
+      <h2>Menu</h2>
+      <button id="menuClose" class="btn btn--ghost" type="button" aria-label="Close menu">×</button>
+    </div>
+    <a href="/static/index.html">Dashboard</a>
+    <a href="/static/games.html">Free Games</a>
+    <a href="/static/deals.html">Discounts</a>
+    <a href="/static/news.html">Game News</a>
+    <a href="/static/settings.html">Settings</a>
+  </nav>
 
   <main id="widgets" class="widgets">
     <section class="widget" id="w-games">

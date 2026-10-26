@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Personal Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230a0c10'/></svg>" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <a class="btn btn--ghost" href="/static/index.html">← Dashboard</a>
+      <h1>Settings</h1>
+    </div>
+  </header>
+  <main class="page">
+    <section class="widget" style="max-width:520px;">
+      <header class="widget__head"><h2 class="widget__title">Chat model</h2></header>
+      <label class="field"><span>Model</span>
+        <input id="modelInput" type="text" placeholder="auto" />
+      </label>
+      <button id="saveSettings" class="btn btn--primary" type="button" style="margin-top:.75rem;">Save</button>
+      <p id="settingsStatus" class="note" style="margin-top:.5rem;"></p>
+    </section>
+  </main>
+  <script src="/static/settings.js"></script>
+</body>
+</html>
