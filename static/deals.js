@@ -2,6 +2,9 @@ async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Err
 function esc(s){
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function skeletonCards(el, n){
+  el.innerHTML = Array.from({length:n}).map(()=>'<div class="card skeleton skeleton--card"></div>').join('');
+}
 function empty(el, msg){
   const tag = el.tagName === 'UL' ? 'li' : 'div';
   el.innerHTML = `<${tag} class="empty">${esc(msg)}</${tag}>`;
@@ -11,6 +14,7 @@ function imgTag(src, alt){
   return `<div class="thumb"><img src="${esc(src)}" alt="${esc(alt||'')}" decoding="async" onerror="this.parentElement.classList.add('thumb--broken')" /></div>`;
 }
 async function loadDeals(){
+  skeletonCards(document.getElementById('deals'), 6);
   let items=[];
   try { items=await fetchJSON('/api/deals'); } catch(e){ items=[]; }
   const el=document.getElementById('deals');
