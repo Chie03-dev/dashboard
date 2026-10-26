@@ -12,6 +12,9 @@ function countdown(end){
 function esc(s){
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function skeletonCards(el, n){
+  el.innerHTML = Array.from({length:n}).map(()=>'<div class="card skeleton skeleton--card"></div>').join('');
+}
 function empty(el, msg){
   const tag = el.tagName === 'UL' ? 'li' : 'div';
   el.innerHTML = `<${tag} class="empty">${esc(msg)}</${tag}>`;
@@ -23,6 +26,7 @@ function imgTag(src, alt){
 
 let allGames=[];
 async function loadGames(){
+  skeletonCards(document.getElementById('games'), 6);
   try { allGames=await fetchJSON('/api/games'); } catch(e){ allGames=[]; }
   const cats=[...new Set(allGames.map(g=>g.category).filter(Boolean))].sort();
   const sel=document.getElementById('catFilter');

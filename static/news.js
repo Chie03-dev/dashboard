@@ -2,11 +2,15 @@ async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Err
 function esc(s){
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function skeletonLines(el, n){
+  el.innerHTML = Array.from({length:n}).map(()=>'<div class="skeleton skeleton--line"></div>').join('');
+}
 function empty(el, msg){
   const tag = el.tagName === 'UL' ? 'li' : 'div';
   el.innerHTML = `<${tag} class="empty">${esc(msg)}</${tag}>`;
 }
 async function loadDev(){
+  skeletonLines(document.getElementById('dev'), 6);
   let items=[];
   try { items=await fetchJSON('/api/dev'); } catch(e){ items=[]; }
   const el=document.getElementById('dev');

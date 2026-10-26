@@ -27,6 +27,19 @@
     <a href="/static/settings.html">Settings</a>
   </nav>
   <main class="page">
+    <div class="widget__controls" style="margin-bottom:1rem;">
+      <label class="field"><span>Category</span>
+        <select id="catFilter"><option value="">All</option></select>
+      </label>
+      <label class="field"><span>Sort</span>
+        <select id="gameSort">
+          <option value="created">Newest</option>
+          <option value="platform">Platform</option>
+          <option value="end">Ending soon</option>
+          <option value="title">Title</option>
+        </select>
+      </label>
+    </div>
     <div id="games" class="grid" aria-live="polite"></div>
   </main>
   <script src="/static/menu.js"></script><script src="/static/games.js"></script>

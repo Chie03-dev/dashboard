@@ -21,6 +21,12 @@ function updateViewAll(id, total){
   el.textContent = total>2 ? `View all ${total} →` : 'View all →';
 }
 
+function skeletonCards(el, n){
+  el.innerHTML = Array.from({length:n}).map(()=>'<div class="card skeleton skeleton--card"></div>').join('');
+}
+function skeletonLines(el, n){
+  el.innerHTML = Array.from({length:n}).map(()=>'<div class="skeleton skeleton--line"></div>').join('');
+}
 function empty(el, msg){
   const tag = el.tagName === 'UL' ? 'li' : 'div';
   el.innerHTML = `<${tag} class="empty">${esc(msg)}</${tag}>`;
@@ -33,6 +39,7 @@ function imgTag(src, alt){
 
 let allGames=[];
 async function loadGames(){
+  skeletonCards(document.getElementById('games'), 4);
   try {
     allGames=await fetchJSON('/api/games');
   } catch(e){ allGames=[]; }
@@ -76,6 +83,7 @@ function renderGames(){
 async function loadDev(){
   let items=[];
   try { items=await fetchJSON('/api/dev'); } catch(e){ items=[]; }
+  skeletonLines(document.getElementById('dev'), 5);
   const el=document.getElementById('dev');
   el.innerHTML='';
   if(!items.length){ empty(el,'No news items'); updateViewAll('newsViewAll', 0); return; }
@@ -90,6 +98,7 @@ async function loadDev(){
 
 async function loadDeals(){
   let items=[];
+  skeletonCards(document.getElementById('deals'), 4);
   try { items=await fetchJSON('/api/deals'); } catch(e){ items=[]; }
   const el=document.getElementById('deals');
   el.innerHTML='';
@@ -113,6 +122,7 @@ async function loadDeals(){
 }
 
 async function loadWeather(){
+  document.getElementById('weather').innerHTML='<div class="skeleton skeleton--line"></div>';
   try {
     const w=await fetchJSON('/api/weather');
     const code=w.code!=null?` · code ${esc(w.code)}`:'';
@@ -124,6 +134,7 @@ async function loadWeather(){
   }
 }
 async function loadDigest(){
+  document.getElementById('digest').innerHTML='<div class="skeleton skeleton--line"></div><div class="skeleton skeleton--line"></div><div class="skeleton skeleton--line"></div>';
   try {
     const d=await fetchJSON('/api/digest');
     document.getElementById('digest').textContent=d.text||'';
@@ -135,6 +146,7 @@ async function loadDigest(){
 async function loadWishlist(){
   let items=[];
   try { items=await fetchJSON('/api/wishlist'); } catch(e){ items=[]; }
+  skeletonLines(document.getElementById('wishlist'), 3);
   const el=document.getElementById('wishlist');
   el.innerHTML='';
   if(!items.length){ empty(el,'No wishlist items'); return; }
