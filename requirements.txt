@@ -6,3 +6,9 @@ openai
 python-dotenv
 redis
 prometheus-client
+psycopg2-binary
+asyncpg
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+email-validator

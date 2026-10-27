@@ -31,5 +31,5 @@ def fetch_deals(limit=12):
             })
         set(cache_k, out, CACHE_TTL_DEALS)
     except Exception as e:
-        logger.error("deals fetch failed: %s", e)
+        logger.error("deals fetch failed", error=str(e))
     return out

@@ -37,5 +37,5 @@ def fetch_weather(lat=40.7128, lon=-74.0060):
         }
         set(cache_k, out, CACHE_TTL_WEATHER)
     except Exception as e:
-        logger.error("weather fetch failed: %s", e)
+        logger.error("weather fetch failed", error=str(e))
     return out
