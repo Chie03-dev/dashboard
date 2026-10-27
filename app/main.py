@@ -16,6 +16,7 @@ from app.db import close_pool, get_conn, init_db
 from app.http_clients import close_all_clients
 from app.logging_conf import set_correlation_id, get_logger, setup_logging
 from app.routes import auth, chat, dev, digest, games, settings
+from app.telemetry import setup_tracing
 
 setup_logging(json_format=False)
 logger = get_logger(__name__)
@@ -32,6 +33,8 @@ REQUEST_LATENCY = Histogram("dashboard_http_request_duration_seconds", "HTTP req
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Initialize OpenTelemetry tracing
+    setup_tracing(app)
     logger.info("Application started")
     yield
     close_all_clients()
