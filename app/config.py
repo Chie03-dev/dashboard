@@ -35,3 +35,25 @@ FETCH_TIMEOUT = int(os.getenv("FETCH_TIMEOUT", "20"))
 SCHEDULER_HOURS = int(os.getenv("SCHEDULER_HOURS", "3"))
 HN_LIMIT = int(os.getenv("HN_LIMIT", "15"))
 REMINDER_HOURS = float(os.getenv("REMINDER_HOURS", "2"))
+
+REDIS_URL = os.getenv("REDIS_URL", "")
+REDIS_ENABLED = os.getenv("REDIS_ENABLED", "true").lower() == "true"
+
+CACHE_TTL_WEATHER = int(os.getenv("CACHE_TTL_WEATHER", "600"))
+CACHE_TTL_DEALS = int(os.getenv("CACHE_TTL_DEALS", "3600"))
+CACHE_TTL_HN = int(os.getenv("CACHE_TTL_HN", "1800"))
+CACHE_TTL_GITHUB = int(os.getenv("CACHE_TTL_GITHUB", "1800"))
+CACHE_TTL_DIGEST = int(os.getenv("CACHE_TTL_DIGEST", "86400"))
+CACHE_TTL_GAMES = int(os.getenv("CACHE_TTL_GAMES", "1800"))
+
+RATE_LIMIT_GAMERPOWER = int(os.getenv("RATE_LIMIT_GAMERPOWER", "10"))
+RATE_LIMIT_EPIC = int(os.getenv("RATE_LIMIT_EPIC", "10"))
+RATE_LIMIT_HN = int(os.getenv("RATE_LIMIT_HN", "30"))
+RATE_LIMIT_GITHUB = int(os.getenv("RATE_LIMIT_GITHUB", "30"))
+RATE_LIMIT_CHEAPSHARK = int(os.getenv("RATE_LIMIT_CHEAPSHARK", "10"))
+RATE_LIMIT_OPENMETEO = int(os.getenv("RATE_LIMIT_OPENMETEO", "60"))
+RATE_LIMIT_LLM = int(os.getenv("RATE_LIMIT_LLM", "20"))
+
+SYNC_MAX_RETRIES = int(os.getenv("SYNC_MAX_RETRIES", "3"))
+SYNC_RETRY_BASE_DELAY = float(os.getenv("SYNC_RETRY_BASE_DELAY", "2.0"))
+SYNC_RETRY_MAX_DELAY = float(os.getenv("SYNC_RETRY_MAX_DELAY", "60.0"))

@@ -1,15 +1,15 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
-from app.config import FETCH_TIMEOUT
+from app.cache import cache_key, get, set
+from app.config import CACHE_TTL_GAMES, FETCH_TIMEOUT
 from app.db import get_conn, now_iso
+from app.http_clients import get_epic_client, get_gamerpower_client
 
 logger = logging.getLogger(__name__)
 
-GAMERPOWER_URL = "https://www.gamerpower.com/api/giveaways?platform=pc&sort-by=date"
-EPIC_URL = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
+GAMERPOWER_PATH = "/api/giveaways?platform=pc&sort-by=date"
+EPIC_PATH = "/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
 
 
 def _parse_gp_date(s):
@@ -28,11 +28,15 @@ def _parse_gp_date(s):
 
 def fetch_gamerpower():
     out = []
+    cache_k = cache_key("games", "gamerpower")
+    cached = get(cache_k)
+    if cached is not None:
+        logger.debug("Cache hit for gamerpower")
+        return cached
     try:
-        with httpx.Client(timeout=FETCH_TIMEOUT) as c:
-            r = c.get(GAMERPOWER_URL)
-            r.raise_for_status()
-            data = r.json()
+        client = get_gamerpower_client()
+        r = client.get(GAMERPOWER_PATH)
+        data = r.json()
         if not isinstance(data, list):
             return out
         for item in data:
@@ -53,6 +57,7 @@ def fetch_gamerpower():
                 )
             except Exception as e:
                 logger.warning("gamerpower item parse error: %s", e)
+        set(cache_k, out, CACHE_TTL_GAMES)
     except Exception as e:
         logger.error("gamerpower fetch failed: %s", e)
     return out
@@ -80,11 +85,15 @@ def _flatten_promos(groups):
 
 def fetch_epic():
     out = []
+    cache_k = cache_key("games", "epic")
+    cached = get(cache_k)
+    if cached is not None:
+        logger.debug("Cache hit for epic")
+        return cached
     try:
-        with httpx.Client(timeout=FETCH_TIMEOUT) as c:
-            r = c.get(EPIC_URL)
-            r.raise_for_status()
-            data = r.json()
+        client = get_epic_client()
+        r = client.get(EPIC_PATH)
+        data = r.json()
         elements = (((data.get("data") or {}).get("Catalog") or {}).get("searchStore") or {}).get("elements") or []
         for el in elements:
             try:
@@ -100,7 +109,6 @@ def fetch_epic():
                 if not (price == 0 or has_100):
                     continue
 
-                # pick end date
                 end = None
                 hundred_current = [po for po in current if (po.get("discountSetting") or {}).get("discountPercentage") == 100]
                 hundred_upcoming = [po for po in upcoming if (po.get("discountSetting") or {}).get("discountPercentage") == 100]
@@ -148,6 +156,7 @@ def fetch_epic():
                 )
             except Exception as e:
                 logger.warning("epic item parse error: %s", e)
+        set(cache_k, out, CACHE_TTL_GAMES)
     except Exception as e:
         logger.error("epic fetch failed: %s", e)
     return out

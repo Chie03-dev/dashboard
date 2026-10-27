@@ -1,10 +1,10 @@
 import logging
 from datetime import date
 
-from openai import OpenAI
-
-from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from app.cache import cache_key, get, set
+from app.config import CACHE_TTL_DIGEST, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from app.db import get_conn, now_iso
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,12 @@ def _fallback(games, dev):
 
 def build_digest():
     today = date.today().isoformat()
+    cache_k = cache_key("digest", today)
+    cached = get(cache_k)
+    if cached is not None:
+        logger.debug("Cache hit for digest")
+        return cached
+
     games, dev = _gather_context()
     text = None
     if LLM_API_KEY:
@@ -68,16 +74,26 @@ def build_digest():
         conn.commit()
     finally:
         conn.close()
+
+    set(cache_k, text, CACHE_TTL_DIGEST)
     return text
 
 
 def get_digest():
     today = date.today().isoformat()
+    cache_k = cache_key("digest", today)
+    cached = get(cache_k)
+    if cached is not None:
+        logger.debug("Cache hit for digest (get_digest)")
+        return {"date": today, "text": cached}
+
     conn = get_conn()
     try:
         row = conn.execute("SELECT text FROM digests WHERE date=?", (today,)).fetchone()
         if row:
-            return {"date": today, "text": row["text"]}
+            text = row["text"]
+            set(cache_k, text, CACHE_TTL_DIGEST)
+            return {"date": today, "text": text}
     finally:
         conn.close()
     # build
