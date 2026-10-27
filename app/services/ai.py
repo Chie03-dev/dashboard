@@ -1,8 +1,18 @@
 import logging
 from datetime import date
+import hashlib
+import json
 
 from app.cache import cache_key, get, set
-from app.config import CACHE_TTL_DIGEST, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from app.config import (
+    CACHE_TTL_DIGEST,
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    LLM_TOKEN_BUDGET_PER_TENANT,
+    LLM_MODEL_FALLBACK_CHAIN,
+    LLM_SEMANTIC_CACHE_TTL,
+)
 from app.db import get_conn, now_iso
 from openai import OpenAI
 
@@ -27,6 +37,69 @@ def _get_tenant_id(conn):
         pass
     from app.config import DEFAULT_TENANT_ID
     return DEFAULT_TENANT_ID
+
+
+def _check_token_budget(tenant_id: str, estimated_tokens: int) -> bool:
+    """Check if tenant has enough token budget remaining for the month."""
+    from datetime import datetime
+    
+    conn = get_conn()
+    try:
+        # Get current month's token usage
+        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        row = conn.execute(
+            "SELECT COALESCE(SUM(tokens_used), 0) FROM llm_usage WHERE tenant_id = ? AND month_start = ?",
+            (tenant_id, month_start),
+        ).fetchone()
+        current_usage = row[0] if row else 0
+        
+        if current_usage + estimated_tokens > LLM_TOKEN_BUDGET_PER_TENANT:
+            logger.warning(
+                "Token budget exceeded for tenant %s: %d/%d",
+                tenant_id,
+                current_usage + estimated_tokens,
+                LLM_TOKEN_BUDGET_PER_TENANT,
+            )
+            return False
+        return True
+    finally:
+        conn.close()
+
+
+def _record_token_usage(tenant_id: str, tokens_used: int):
+    """Record token usage for budget tracking."""
+    from datetime import datetime
+    
+    conn = get_conn()
+    try:
+        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        conn.execute(
+            """INSERT INTO llm_usage (tenant_id, month_start, tokens_used, created_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(tenant_id, month_start) DO UPDATE SET tokens_used = tokens_used + ?""",
+            (tenant_id, month_start, tokens_used, now_iso(), tokens_used),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _semantic_cache_key(prompt: str) -> str:
+    """Generate semantic cache key from prompt."""
+    content = json.dumps(prompt, sort_keys=True)
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
+def _get_semantic_cache(prompt: str) -> Optional[str]:
+    """Check semantic cache for similar prompts."""
+    cache_k = cache_key("llm_semantic", _semantic_cache_key(prompt))
+    return get(cache_k)
+
+
+def _set_semantic_cache(prompt: str, response: str):
+    """Store response in semantic cache."""
+    cache_k = cache_key("llm_semantic", _semantic_cache_key(prompt))
+    set(cache_k, response, LLM_SEMANTIC_CACHE_TTL)
 
 
 def _gather_context(tenant_id: str):
@@ -56,6 +129,28 @@ def _fallback(games, dev):
     return "\n".join(lines)
 
 
+def _call_llm_with_fallback(prompt: str, estimated_tokens: int) -> Optional[str]:
+    """Call LLM with model fallback chain."""
+    for model in LLM_MODEL_FALLBACK_CHAIN:
+        try:
+            client = _client()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=60,
+            )
+            text = resp.choices[0].message.content
+            usage = getattr(resp, 'usage', None)
+            if usage:
+                _record_token_usage(_get_tenant_id(get_conn()), usage.total_tokens)
+            logger.info("LLM call successful with model: %s", model)
+            return text
+        except Exception as e:
+            logger.warning("LLM model %s failed: %s", model, e)
+            continue
+    return None
+
+
 def build_digest():
     today = date.today().isoformat()
     conn = get_conn()
@@ -72,24 +167,29 @@ def build_digest():
 
     games, dev = _gather_context(tenant_id)
     text = None
+    
     if LLM_API_KEY:
-        try:
-            client = _client()
+        # Check token budget
+        estimated_tokens = 500  # rough estimate for digest
+        if _check_token_budget(tenant_id, estimated_tokens):
+            # Check semantic cache
             prompt = (
                 "Create a concise daily digest for a personal dashboard. "
                 "Summarize free games available and notable dev/HN/GitHub items. "
                 "Keep under 200 words.\n\n"
                 f"Free games: {games}\n\nDev items: {dev}"
             )
-            resp = client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=60,
-            )
-            text = resp.choices[0].message.content
-        except Exception as e:
-            logger.error("llm digest failed", error=str(e))
-            text = None
+            cached_response = _get_semantic_cache(prompt)
+            if cached_response:
+                logger.info("Semantic cache hit for digest")
+                text = cached_response
+            else:
+                text = _call_llm_with_fallback(prompt, estimated_tokens)
+                if text:
+                    _set_semantic_cache(prompt, text)
+        else:
+            logger.warning("Token budget exceeded for tenant %s", tenant_id)
+    
     if not text:
         text = _fallback(games, dev)
 
