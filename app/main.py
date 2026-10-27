@@ -1,18 +1,21 @@
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
+from app.auth import clear_tenant_context, set_tenant_context
 from app.cache import is_available as redis_available
 from app.config import REDIS_URL
-from app.db import get_conn, init_db
+from app.db import close_pool, get_conn, init_db
 from app.http_clients import close_all_clients
 from app.logging_conf import set_correlation_id, get_logger, setup_logging
-from app.routes import chat, dev, digest, games, settings
+from app.routes import auth, chat, dev, digest, games, settings
 
 setup_logging(json_format=False)
 logger = get_logger(__name__)
@@ -32,6 +35,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application started")
     yield
     close_all_clients()
+    close_pool()
     logger.info("Application shutdown")
 
 
@@ -44,6 +48,39 @@ async def correlation_middleware(request: Request, call_next):
     set_correlation_id(cid)
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = cid
+    return response
+
+
+@app.middleware("http")
+async def tenant_middleware(request: Request, call_next):
+    """Extract tenant from Authorization header and set context for RLS."""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        from app.auth import get_tenant_id_from_token
+        tenant_id = get_tenant_id_from_token(token)
+        if tenant_id:
+            set_tenant_context(tenant_id)
+    try:
+        response = await call_next(request)
+    finally:
+        clear_tenant_context()
+    return response
+
+
+@app.middleware("http")
+async def spa_fallback_middleware(request: Request, call_next):
+    """Serve index.html for non-API paths that don't match any route."""
+    response = await call_next(request)
+    # If route not found (404) and it's a GET request for a non-API path, serve index.html
+    if response.status_code == 404 and request.method == "GET":
+        path = request.url.path
+        if not (path.startswith("/api/") or path.startswith("/static/") or 
+                path in ("/healthz", "/metrics", "/docs", "/redoc", "/openapi.json") or
+                path.startswith("/docs/") or path.startswith("/redoc/")):
+            index_path = os.path.join("static", "index.html")
+            if os.path.exists(index_path):
+                return FileResponse(index_path)
     return response
 
 
@@ -92,6 +129,39 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+# Manually include auth routes (workaround for FastAPI 0.162.0 router inclusion bug)
+from app.routes import auth as auth_routes
+from fastapi.routing import APIRoute
+for route in auth_routes.router.routes:
+    if isinstance(route, APIRoute):
+        # Create new route with prefix
+        new_route = APIRoute(
+            path="/api/auth" + route.path,
+            endpoint=route.endpoint,
+            methods=route.methods,
+            name=route.name,
+            include_in_schema=route.include_in_schema,
+            response_class=route.response_class,
+            status_code=route.status_code,
+            tags=route.tags,
+            dependencies=route.dependencies,
+            summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            responses=route.responses,
+            deprecated=route.deprecated,
+            operation_id=route.operation_id,
+            response_model=route.response_model,
+            response_model_include=route.response_model_include,
+            response_model_exclude=route.response_model_exclude,
+            response_model_by_alias=route.response_model_by_alias,
+            response_model_exclude_unset=route.response_model_exclude_unset,
+            response_model_exclude_defaults=route.response_model_exclude_defaults,
+            response_model_exclude_none=route.response_model_exclude_none,
+            openapi_extra=route.openapi_extra,
+        )
+        app.router.routes.append(new_route)
+
 app.include_router(games.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(dev.router, prefix="/api")
@@ -99,4 +169,3 @@ app.include_router(digest.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/", StaticFiles(directory="static", html=True), name="root")

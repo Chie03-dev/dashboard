@@ -6,6 +6,14 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.getenv("DB_PATH", os.path.join(BASE_DIR, "dashboard.db"))
 
+# PostgreSQL configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Format: postgresql://user:pass@host:port/dbname
+# If not set, falls back to SQLite
+
+DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "2"))
+DB_POOL_MAX = int(os.getenv("DB_POOL_MAX", "10"))
+
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -57,3 +65,12 @@ RATE_LIMIT_LLM = int(os.getenv("RATE_LIMIT_LLM", "20"))
 SYNC_MAX_RETRIES = int(os.getenv("SYNC_MAX_RETRIES", "3"))
 SYNC_RETRY_BASE_DELAY = float(os.getenv("SYNC_RETRY_BASE_DELAY", "2.0"))
 SYNC_RETRY_MAX_DELAY = float(os.getenv("SYNC_RETRY_MAX_DELAY", "60.0"))
+
+# Auth/JWT
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+
+# Multi-tenant
+DEFAULT_TENANT_ID = os.getenv("DEFAULT_TENANT_ID", "00000000-0000-0000-0000-000000000001")

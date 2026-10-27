@@ -56,10 +56,10 @@ def fetch_gamerpower():
                     }
                 )
             except Exception as e:
-                logger.warning("gamerpower item parse error: %s", e)
+                logger.warning("gamerpower item parse error", error=str(e))
         set(cache_k, out, CACHE_TTL_GAMES)
     except Exception as e:
-        logger.error("gamerpower fetch failed: %s", e)
+        logger.error("gamerpower fetch failed", error=str(e))
     return out
 
 
@@ -155,10 +155,10 @@ def fetch_epic():
                     }
                 )
             except Exception as e:
-                logger.warning("epic item parse error: %s", e)
+                logger.warning("epic item parse error", error=str(e))
         set(cache_k, out, CACHE_TTL_GAMES)
     except Exception as e:
-        logger.error("epic fetch failed: %s", e)
+        logger.error("epic fetch failed", error=str(e))
     return out
 
 
@@ -166,16 +166,21 @@ def fetch_all_games():
     return fetch_gamerpower() + fetch_epic()
 
 
-def _is_new(source, external_id):
-    conn = get_conn()
+def _get_tenant_id(conn):
+    """Get current tenant_id from connection context."""
     try:
-        row = conn.execute(
-            "SELECT 1 FROM games WHERE source=? AND external_id=?",
-            (source, external_id),
-        ).fetchone()
-        return row is None
-    finally:
-        conn.close()
+        if hasattr(conn, 'cursor'):
+            # PostgreSQL
+            with conn.cursor() as cur:
+                cur.execute("SELECT current_setting('app.current_tenant', true)")
+                result = cur.fetchone()
+                if result and result[0]:
+                    return result[0]
+        # SQLite - use default
+    except Exception:
+        pass
+    from app.config import DEFAULT_TENANT_ID
+    return DEFAULT_TENANT_ID
 
 
 def sync_games():
@@ -185,21 +190,24 @@ def sync_games():
     conn = get_conn()
     new_items = []
     try:
+        tenant_id = _get_tenant_id(conn)
         for g in items:
             row = conn.execute(
-                "SELECT id FROM games WHERE source=? AND external_id=?",
-                (g["source"], g["external_id"]),
+                "SELECT id FROM games WHERE tenant_id = ? AND source = ? AND external_id = ?",
+                (tenant_id, g["source"], g["external_id"]),
             ).fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT INTO games (source, external_id, title, platform, url, thumbnail, category, end_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (g["source"], g["external_id"], g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], now_iso()),
+                    """INSERT INTO games (tenant_id, source, external_id, title, platform, url, thumbnail, category, end_date, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (tenant_id, g["source"], g["external_id"], g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], now_iso()),
                 )
                 new_items.append(g)
             else:
                 conn.execute(
-                    "UPDATE games SET title=?, platform=?, url=?, thumbnail=?, category=?, end_date=? WHERE source=? AND external_id=?",
-                    (g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], g["source"], g["external_id"]),
+                    """UPDATE games SET title=?, platform=?, url=?, thumbnail=?, category=?, end_date=?
+                       WHERE tenant_id = ? AND source=? AND external_id=?""",
+                    (g["title"], g["platform"], g["url"], g.get("thumbnail"), g.get("category"), g["end_date"], tenant_id, g["source"], g["external_id"]),
                 )
         conn.commit()
     finally:
@@ -209,26 +217,27 @@ def sync_games():
         try:
             notifier.notify_new_game(g)
         except Exception as e:
-            logger.error("notify_new_game failed: %s", e)
+            logger.error("notify_new_game failed", error=str(e))
         # mark notified
         try:
             conn = get_conn()
             conn.execute(
-                "UPDATE games SET notified_at=? WHERE source=? AND external_id=?",
-                (now_iso(), g["source"], g["external_id"]),
+                "UPDATE games SET notified_at=? WHERE tenant_id = ? AND source=? AND external_id=?",
+                (now_iso(), tenant_id, g["source"], g["external_id"]),
             )
             conn.commit()
             conn.close()
         except Exception as e:
-            logger.error("mark notified failed: %s", e)
+            logger.error("mark notified failed", error=str(e))
 
     # wishlist matches
     try:
         conn = get_conn()
-        names = [r["name"] for r in conn.execute("SELECT name FROM wishlist").fetchall()]
+        names = [r["name"] for r in conn.execute("SELECT name FROM wishlist WHERE tenant_id = ?", (tenant_id,)).fetchall()]
         if names:
             rows = conn.execute(
-                "SELECT source, external_id, title, platform, url, end_date, wishlist_notified_at FROM games"
+                "SELECT source, external_id, title, platform, url, end_date, wishlist_notified_at FROM games WHERE tenant_id = ?",
+                (tenant_id,),
             ).fetchall()
             for row in rows:
                 if row["wishlist_notified_at"]:
@@ -245,19 +254,19 @@ def sync_games():
                     }
                     notifier.notify_wishlist(game)
                     conn.execute(
-                        "UPDATE games SET wishlist_notified_at=? WHERE source=? AND external_id=?",
-                        (now_iso(), row["source"], row["external_id"]),
+                        "UPDATE games SET wishlist_notified_at=? WHERE tenant_id = ? AND source=? AND external_id=?",
+                        (now_iso(), tenant_id, row["source"], row["external_id"]),
                     )
             conn.commit()
         conn.close()
     except Exception as e:
-        logger.error("wishlist matching failed: %s", e)
+        logger.error("wishlist matching failed", error=str(e))
 
     # reminders
     try:
-        _send_reminders()
+        _send_reminders(tenant_id)
     except Exception as e:
-        logger.error("reminders failed: %s", e)
+        logger.error("reminders failed", error=str(e))
 
     return items
 
@@ -277,14 +286,15 @@ def _parse_end(end):
         return None
 
 
-def _send_reminders():
+def _send_reminders(tenant_id: str):
     from app.services import notifier
     from app.config import REMINDER_HOURS
 
     conn = get_conn()
     try:
         rows = conn.execute(
-            "SELECT source, external_id, title, platform, url, end_date, reminder_sent_at FROM games WHERE reminder_sent_at IS NULL"
+            "SELECT source, external_id, title, platform, url, end_date, reminder_sent_at FROM games WHERE tenant_id = ? AND reminder_sent_at IS NULL",
+            (tenant_id,),
         ).fetchall()
     finally:
         conn.close()
@@ -307,15 +317,15 @@ def _send_reminders():
             try:
                 notifier.notify_reminder(game)
             except Exception as e:
-                logger.error("notify_reminder failed: %s", e)
+                logger.error("notify_reminder failed", error=str(e))
                 continue
             try:
                 conn = get_conn()
                 conn.execute(
-                    "UPDATE games SET reminder_sent_at=? WHERE source=? AND external_id=?",
-                    (now_iso(), row["source"], row["external_id"]),
+                    "UPDATE games SET reminder_sent_at=? WHERE tenant_id = ? AND source=? AND external_id=?",
+                    (now_iso(), tenant_id, row["source"], row["external_id"]),
                 )
                 conn.commit()
                 conn.close()
             except Exception as e:
-                logger.error("mark reminder failed: %s", e)
+                logger.error("mark reminder failed", error=str(e))

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def _send_email(subject, body):
     if not SMTP_HOST:
-        logger.info("SMTP not configured; dry-run email: %s\n%s", subject, body)
+        logger.info("SMTP not configured; dry-run email", subject=subject, body=body)
         return
     try:
         msg = EmailMessage()
@@ -25,7 +25,7 @@ def _send_email(subject, body):
                 s.login(SMTP_USER, SMTP_PASS)
             s.send_message(msg)
     except Exception as e:
-        logger.error("email send failed: %s", e)
+        logger.error("email send failed", error=str(e))
 
 
 def _ntfy(title, body):
@@ -34,7 +34,7 @@ def _ntfy(title, body):
     try:
         httpx.post(NTFY_URL, content=body, headers={"Title": title}, timeout=10)
     except Exception as e:
-        logger.error("ntfy push failed: %s", e)
+        logger.error("ntfy push failed", error=str(e))
 
 
 def notify_new_game(game):

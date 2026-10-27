@@ -66,29 +66,29 @@ class CorrelationLogger:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
-    def _log(self, level: int, msg: str, **extra):
+    def _log(self, level: int, msg: str, *args, **extra):
         cid = correlation_id_var.get()
         if cid:
             extra["correlation_id"] = cid
-        self.logger.log(level, msg, extra=extra)
+        self.logger.log(level, msg, *args, extra=extra)
 
-    def debug(self, msg: str, **extra):
-        self._log(logging.DEBUG, msg, **extra)
+    def debug(self, msg: str, *args, **extra):
+        self._log(logging.DEBUG, msg, *args, **extra)
 
-    def info(self, msg: str, **extra):
-        self._log(logging.INFO, msg, **extra)
+    def info(self, msg: str, *args, **extra):
+        self._log(logging.INFO, msg, *args, **extra)
 
-    def warning(self, msg: str, **extra):
-        self._log(logging.WARNING, msg, **extra)
+    def warning(self, msg: str, *args, **extra):
+        self._log(logging.WARNING, msg, *args, **extra)
 
-    def error(self, msg: str, **extra):
-        self._log(logging.ERROR, msg, **extra)
+    def error(self, msg: str, *args, **extra):
+        self._log(logging.ERROR, msg, *args, **extra)
 
-    def critical(self, msg: str, **extra):
-        self._log(logging.CRITICAL, msg, **extra)
+    def critical(self, msg: str, *args, **extra):
+        self._log(logging.CRITICAL, msg, *args, **extra)
 
-    def exception(self, msg: str, **extra):
-        self._log(logging.ERROR, msg, **extra)
+    def exception(self, msg: str, *args, **extra):
+        self._log(logging.ERROR, msg, *args, **extra)
 
 
 def get_logger(name: str) -> CorrelationLogger:

@@ -38,10 +38,10 @@ def fetch_hn():
                     }
                 )
             except Exception as e:
-                logger.warning("hn item %s failed: %s", sid, e)
+                logger.warning("hn item failed", item_id=sid, error=str(e))
         set(cache_k, out, CACHE_TTL_HN)
     except Exception as e:
-        logger.error("hn fetch failed: %s", e)
+        logger.error("hn fetch failed", error=str(e))
     return out
 
 
@@ -82,10 +82,10 @@ def fetch_github():
                     }
                 )
             except Exception as e:
-                logger.warning("github item parse error: %s", e)
+                logger.warning("github item parse error", error=str(e))
         set(cache_k, out, CACHE_TTL_GITHUB)
     except Exception as e:
-        logger.error("github fetch failed: %s", e)
+        logger.error("github fetch failed", error=str(e))
     return out
 
 
@@ -93,28 +93,46 @@ def fetch_all_dev():
     return fetch_hn() + fetch_github()
 
 
+def _get_tenant_id(conn):
+    """Get current tenant_id from connection context."""
+    try:
+        if hasattr(conn, 'cursor'):
+            # PostgreSQL
+            with conn.cursor() as cur:
+                cur.execute("SELECT current_setting('app.current_tenant', true)")
+                result = cur.fetchone()
+                if result and result[0]:
+                    return result[0]
+    except Exception:
+        pass
+    from app.config import DEFAULT_TENANT_ID
+    return DEFAULT_TENANT_ID
+
+
 def sync_dev():
     items = fetch_all_dev()
     conn = get_conn()
     try:
+        tenant_id = _get_tenant_id(conn)
         for it in items:
             row = conn.execute(
-                "SELECT id FROM dev_items WHERE source=? AND external_id=?",
-                (it["source"], it["external_id"]),
+                "SELECT id FROM dev_items WHERE tenant_id = ? AND source = ? AND external_id = ?",
+                (tenant_id, it["source"], it["external_id"]),
             ).fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT INTO dev_items (source, external_id, title, url, fetched_at) VALUES (?,?,?,?,?)",
-                    (it["source"], it["external_id"], it["title"], it["url"], now_iso()),
+                    "INSERT INTO dev_items (tenant_id, source, external_id, title, url, fetched_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (tenant_id, it["source"], it["external_id"], it["title"], it["url"], now_iso()),
                 )
             else:
                 conn.execute(
-                    "UPDATE dev_items SET title=?, url=?, fetched_at=? WHERE source=? AND external_id=?",
-                    (it["title"], it["url"], now_iso(), it["source"], it["external_id"]),
+                    "UPDATE dev_items SET title = ?, url = ?, fetched_at = ? WHERE tenant_id = ? AND source = ? AND external_id = ?",
+                    (it["title"], it["url"], now_iso(), tenant_id, it["source"], it["external_id"]),
                 )
         conn.commit()
     finally:
         conn.close()
     return items
+
 
 fetch_dev = sync_dev
