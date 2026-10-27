@@ -11,6 +11,13 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Format: postgresql://user:pass@host:port/dbname
 # If not set, falls back to SQLite
 
+# PgBouncer configuration (connection pooling)
+PGBOUNCER_URL = os.getenv("PGBOUNCER_URL", "")
+# Format: postgresql://user:pass@host:port/dbname (connects to PgBouncer on port 6432)
+
+# Use PgBouncer URL if set, otherwise fall back to DATABASE_URL
+EFFECTIVE_DATABASE_URL = PGBOUNCER_URL or DATABASE_URL
+
 DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "2"))
 DB_POOL_MAX = int(os.getenv("DB_POOL_MAX", "10"))
 

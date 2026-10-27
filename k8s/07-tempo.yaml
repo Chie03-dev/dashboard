@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: dashboard
+  labels:
+    app: tempo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3200
+      targetPort: 3200
+      name: http
+    - port: 4317
+      targetPort: 4317
+      name: grpc
+    - port: 4318
+      targetPort: 4318
+      name: http-otlp
+  selector:
+    app: tempo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.4.0
+          args:
+            - "-config.file=/etc/tempo/tempo-config.yaml"
+          ports:
+            - containerPort: 3200
+            - containerPort: 4317
+            - containerPort: 4318
+          volumeMounts:
+            - name: tempo-config
+              mountPath: /etc/tempo
+            - name: tempo-data
+              mountPath: /tempo
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: tempo-config
+          configMap:
+            name: tempo-config
+        - name: tempo-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: dashboard
+data:
+  tempo-config.yaml: |
+    server:
+      http_listen_port: 3200
+      grpc_listen_port: 9095
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+    ingester:
+      max_block_duration: 5m
+      max_block_bytes: 1_000_000
+      trace_idle_period: 10s
+      wal:
+        enabled: true
+        path: /tempo/wal
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tempo/traces
+        pool:
+          max_workers: 100
+          queue_depth: 10000
+
+    compactor:
+      compaction:
+        block_retention: 1h
+        compacted_block_retention: 10m
+
+    limits:
+      max_spans_per_trace: 10000
+      max_bytes_per_trace: 10_000_000
+
+    overrides:
+      defaults:
+        ingestion_rate_limit_mb: 10
+        ingestion_burst_size_mb: 20

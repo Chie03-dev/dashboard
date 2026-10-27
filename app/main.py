@@ -15,7 +15,7 @@ from app.config import REDIS_URL
 from app.db import close_pool, get_conn, init_db
 from app.http_clients import close_all_clients
 from app.logging_conf import set_correlation_id, get_logger, setup_logging
-from app.routes import auth, chat, dev, digest, games, settings
+from app.routes import auth, chat, dev, digest, games, settings, webhooks
 from app.telemetry import setup_tracing
 
 setup_logging(json_format=False)
@@ -170,5 +170,6 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(dev.router, prefix="/api")
 app.include_router(digest.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(webhooks.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

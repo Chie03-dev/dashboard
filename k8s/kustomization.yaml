@@ -1,0 +1,110 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dashboard
+
+resources:
+  - 00-namespace-rbac.yaml
+  - 01-config-secret.yaml
+  - 02-data-stores.yaml
+  - 03-dashboard-apps.yaml
+  - 04-prometheus.yaml
+  - 05-alertmanager.yaml
+  - 06-loki.yaml
+  - 07-tempo.yaml
+  - 08-grafana.yaml
+  - 09-grafana-dashboards-config.yaml
+  - 10-grafana-dashboard.yaml
+  - 11-ingress.yaml
+
+commonLabels:
+  app: dashboard
+  environment: production
+
+configMapGenerator:
+  - name: dashboard-config
+    behavior: merge
+    literals:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dashboard
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - LLM_BASE_URL=http://ollama:11434/v1
+      - LLM_MODEL=llama3.1
+      - FETCH_TIMEOUT=20
+      - SCHEDULER_HOURS=3
+      - HN_LIMIT=15
+      - REMINDER_HOURS=2
+      - REDIS_ENABLED=true
+      - CACHE_TTL_WEATHER=600
+      - CACHE_TTL_DEALS=3600
+      - CACHE_TTL_HN=1800
+      - CACHE_TTL_GITHUB=1800
+      - CACHE_TTL_DIGEST=86400
+      - CACHE_TTL_GAMES=1800
+      - RATE_LIMIT_GAMERPOWER=10
+      - RATE_LIMIT_EPIC=10
+      - RATE_LIMIT_HN=30
+      - RATE_LIMIT_GITHUB=30
+      - RATE_LIMIT_CHEAPSHARK=10
+      - RATE_LIMIT_OPENMETEO=60
+      - RATE_LIMIT_LLM=20
+      - SYNC_MAX_RETRIES=3
+      - SYNC_RETRY_BASE_DELAY=2.0
+      - SYNC_RETRY_MAX_DELAY=60.0
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - DEFAULT_TENANT_ID=00000000-0000-0000-0000-000000000001
+      - LLM_TOKEN_BUDGET_PER_TENANT=100000
+      - LLM_MODEL_FALLBACK_CHAIN=gpt-3.5-turbo,gpt-4,claude-3-haiku
+      - LLM_SEMANTIC_CACHE_TTL=86400
+      - OTEL_SERVICE_NAME=dashboard
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+
+secretGenerator:
+  - name: dashboard-secrets
+    behavior: merge
+    literals:
+      - JWT_SECRET_KEY=CHANGE_ME_IN_PRODUCTION
+      - LLM_API_KEY=YOUR_LLM_API_KEY_HERE
+      - GITHUB_TOKEN=YOUR_GITHUB_TOKEN_HERE
+      - SMTP_HOST=smtp.example.com
+      - SMTP_PORT=587
+      - SMTP_USER=smtp_user
+      - SMTP_PASS=smtp_password
+      - SMTP_FROM=dashboard@example.com
+      - SMTP_TO=admin@example.com
+      - NTFY_URL=https://ntfy.sh/your-topic
+      - POSTGRES_PASSWORD=postgres
+      - GRAFANA_PASSWORD=admin
+      - REDIS_PASSWORD=
+
+images:
+  - name: dashboard
+    newTag: latest
+  - name: postgres
+    newTag: 16-alpine
+  - name: redis
+    newTag: 7-alpine
+  - name: pgbouncer
+    newTag: 1.22
+  - name: prometheus
+    newTag: v2.48.0
+  - name: alertmanager
+    newTag: v0.27.0
+  - name: loki
+    newTag: 2.9.0
+  - name: tempo
+    newTag: 2.4.0
+  - name: grafana
+    newTag: 10.2.0
+
+patches:
+  - patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: dashboard-api

@@ -1,0 +1,236 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-api
+  namespace: dashboard
+  labels:
+    app: dashboard-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app: dashboard-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-api
+  namespace: dashboard
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dashboard-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: dashboard-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: dashboard-api
+          image: dashboard:latest
+          command: ["gunicorn", "-c", "gunicorn.conf.py", "app.main:app"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: dashboard-config
+            - secretRef:
+                name: dashboard-secrets
+          env:
+            - name: PGBOUNCER_URL
+              value: "postgresql://postgres:postgres@pgbouncer:6432/dashboard"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres:5432/dashboard"
+          volumeMounts:
+            - name: static-files
+              mountPath: /app/static
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: static-files
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-worker
+  namespace: dashboard
+  labels:
+    app: dashboard-worker
+spec:
+  clusterIP: None
+  selector:
+    app: dashboard-worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-worker
+  namespace: dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard-worker
+  template:
+    metadata:
+      labels:
+        app: dashboard-worker
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: worker
+          image: dashboard:latest
+          command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "-Q", "sync,notifications,default"]
+          envFrom:
+            - configMapRef:
+                name: dashboard-config
+            - secretRef:
+                name: dashboard-secrets
+          env:
+            - name: PGBOUNCER_URL
+              value: "postgresql://postgres:postgres@pgbouncer:6432/dashboard"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres:5432/dashboard"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-beat
+  namespace: dashboard
+  labels:
+    app: dashboard-beat
+spec:
+  clusterIP: None
+  selector:
+    app: dashboard-beat
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-beat
+  namespace: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-beat
+  template:
+    metadata:
+      labels:
+        app: dashboard-beat
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: beat
+          image: dashboard:latest
+          command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: dashboard-config
+            - secretRef:
+                name: dashboard-secrets
+          env:
+            - name: PGBOUNCER_URL
+              value: "postgresql://postgres:postgres@pgbouncer:6432/dashboard"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres:5432/dashboard"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower
+  namespace: dashboard
+  labels:
+    app: flower
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5555
+      targetPort: 5555
+  selector:
+    app: flower
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flower
+  template:
+    metadata:
+      labels:
+        app: flower
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: flower
+          image: dashboard:latest
+          command: ["celery", "-A", "app.celery_app", "flower", "--port=5555", "--broker=redis://redis:6379/0"]
+          ports:
+            - containerPort: 5555
+          envFrom:
+            - configMapRef:
+                name: dashboard-config
+            - secretRef:
+                name: dashboard-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
