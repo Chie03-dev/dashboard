@@ -7,16 +7,16 @@ from typing import Generator, Optional
 from urllib.parse import urlparse
 
 from app.config import (
-    DATABASE_URL,
     DB_PATH,
     DB_POOL_MAX,
     DB_POOL_MIN,
     DEFAULT_TENANT_ID,
+    EFFECTIVE_DATABASE_URL,
 )
 
 logger = logging.getLogger(__name__)
 
-_use_postgres = bool(DATABASE_URL)
+_use_postgres = bool(EFFECTIVE_DATABASE_URL)
 _pg_pool: Optional[object] = None
 
 
@@ -26,7 +26,7 @@ def _get_pg_pool():
         import psycopg2
         from psycopg2.pool import ThreadedConnectionPool
 
-        parsed = urlparse(DATABASE_URL)
+        parsed = urlparse(EFFECTIVE_DATABASE_URL)
         _pg_pool = ThreadedConnectionPool(
             minconn=DB_POOL_MIN,
             maxconn=DB_POOL_MAX,

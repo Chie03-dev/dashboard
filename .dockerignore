@@ -1,0 +1,102 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+coverage.xml
+*.cover
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.coverage
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Kubernetes
+k8s/*.yaml
+!k8s/kustomization.yaml
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Monitoring
+prometheus*.yml
+alertmanager*.yml
+loki*.yaml
+tempo*.yaml
+grafana*.yml
+grafana-dashboards/
+
+# Terraform
+*.tf
+*.tfstate
+*.tfvars
+.terraform/
+
+# Ansible
+*.yml
+!docker-compose*.yml
+
+# Misc
+*.bak
+*.tmp
+*.temp

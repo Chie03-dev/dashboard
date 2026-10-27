@@ -1,0 +1,332 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: dashboard
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+  selector:
+    app: prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: dashboard-sa
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.48.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=30d"
+            - "--web.enable-lifecycle"
+            - "--web.enable-admin-api"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus
+            - name: prometheus-data
+              mountPath: /prometheus
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: prometheus-config
+        - name: prometheus-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: dashboard
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'dashboard'
+        environment: 'production'
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - alertmanager:9093
+
+    rule_files:
+      - '/etc/prometheus/rules/*.yml'
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'dashboard-api'
+        metrics_path: '/metrics'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - dashboard
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: dashboard-api
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      - job_name: 'celery-workers'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - dashboard
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: dashboard-worker
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      - job_name: 'postgres'
+        static_configs:
+          - targets: ['postgres:5432']
+
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis:6379']
+
+      - job_name: 'pgbouncer'
+        static_configs:
+          - targets: ['pgbouncer:6432']
+
+      - job_name: 'loki'
+        static_configs:
+          - targets: ['loki:3100']
+
+      - job_name: 'tempo'
+        static_configs:
+          - targets: ['tempo:3200']
+
+      - job_name: 'grafana'
+        static_configs:
+          - targets: ['grafana:3000']
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: dashboard
+data:
+  dashboard.rules.yml: |
+    groups:
+      - name: dashboard.rules
+        interval: 30s
+        rules:
+          - alert: DashboardSyncFailed
+            expr: increase(dashboard_sync_failure_total[5m]) > 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Dashboard sync job failed"
+              description: "Sync job {{ $labels.job }} failed {{ $value }} times in the last 5 minutes. Error: {{ $labels.error }}"
+
+          - alert: DashboardSyncDurationHigh
+            expr: histogram_quantile(0.95, rate(dashboard_sync_duration_seconds_bucket[5m])) > 300
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Dashboard sync taking too long"
+              description: "Sync job {{ $labels.job }} 95th percentile duration is {{ $value | humanizeDuration }}"
+
+          - alert: DashboardExternalAPIErrorsHigh
+            expr: rate(dashboard_external_api_errors_total[5m]) > 0.1
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High external API error rate"
+              description: "API {{ $labels.api }} error rate is {{ $value | humanizePercentage }}"
+
+          - alert: DashboardExternalAPILatencyHigh
+            expr: histogram_quantile(0.95, rate(dashboard_external_api_latency_seconds_bucket[5m])) > 10
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High external API latency"
+              description: "API {{ $labels.api }} 95th percentile latency is {{ $value | humanizeDuration }}"
+
+          - alert: DashboardLLMBudgetExceeded
+            expr: |
+              (
+                sum by (tenant_id) (increase(dashboard_llm_tokens_used_total[30d]))
+                > 
+                (100000 * 0.9)
+              )
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "LLM token budget near limit"
+              description: "Tenant {{ $labels.tenant_id }} has used >90% of monthly token budget"
+
+          - alert: DashboardLLMBudgetCritical
+            expr: |
+              (
+                sum by (tenant_id) (increase(dashboard_llm_tokens_used_total[30d]))
+                > 
+                100000
+              )
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "LLM token budget exceeded"
+              description: "Tenant {{ $labels.tenant_id }} has exceeded monthly token budget"
+
+          - alert: DashboardCacheHitRatioLow
+            expr: |
+              (
+                rate(dashboard_cache_hits_total[5m]) 
+                / 
+                (rate(dashboard_cache_hits_total[5m]) + rate(dashboard_cache_misses_total[5m]))
+              ) < 0.5
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Cache hit ratio below 50%"
+              description: "Cache {{ $labels.cache }} hit ratio is {{ $value | humanizePercentage }}"
+
+          - alert: DashboardHTTPErrorsHigh
+            expr: |
+              (
+                sum by (endpoint) (rate(dashboard_http_requests_total{status=~"5.."}[5m]))
+                /
+                sum by (endpoint) (rate(dashboard_http_requests_total[5m]))
+              ) > 0.05
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High HTTP 5xx error rate"
+              description: "Endpoint {{ $labels.endpoint }} 5xx rate is {{ $value | humanizePercentage }}"
+
+          - alert: DashboardHTTPLatencyHigh
+            expr: |
+              histogram_quantile(0.95, rate(dashboard_http_request_duration_seconds_bucket[5m])) > 2
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High HTTP latency"
+              description: "Endpoint {{ $labels.endpoint }} 95th percentile latency is {{ $value | humanizeDuration }}"
+
+          - alert: DashboardCeleryWorkersDown
+            expr: celery_workers < 1
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No Celery workers running"
+              description: "No Celery workers are registered"
+
+          - alert: DashboardCeleryQueueBacklog
+            expr: celery_queue_length > 100
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Celery queue backlog"
+              description: "Queue {{ $labels.queue }} has {{ $value }} pending tasks"
+
+          - alert: DashboardCeleryTaskFailureRate
+            expr: |
+              (
+                sum by (task) (rate(celery_tasks_total{status="FAILURE"}[5m]))
+                /
+                sum by (task) (rate(celery_tasks_total[5m]))
+              ) > 0.1
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High Celery task failure rate"
+              description: "Task {{ $labels.task }} failure rate is {{ $value | humanizePercentage }}"
+
+          - alert: DashboardDatabaseDown
+            expr: up{job="dashboard-api"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Dashboard API down"
+              description: "Dashboard API has been down for more than 1 minute"
+
+          - alert: DashboardRedisDown
+            expr: up{job="redis"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Redis down"
+              description: "Redis has been down for more than 1 minute"
+
+          - alert: DashboardRedisMemoryHigh
+            expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Redis memory usage high"
+              description: "Redis is using {{ $value | humanizePercentage }} of max memory"
+
+          - alert: DashboardDLQNotEmpty
+            expr: dead_letter_queue_length > 0
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Dead letter queue has entries"
+              description: "DLQ has {{ $value }} failed fetch entries awaiting retry"
