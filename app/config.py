@@ -39,6 +39,13 @@ LLM_BASE_URL = (
 )
 LLM_MODEL = os.getenv("LLM_MODEL") or os.getenv("FREELLM_MODEL") or "auto"
 
+# LLM token budget per tenant (monthly)
+LLM_TOKEN_BUDGET_PER_TENANT = int(os.getenv("LLM_TOKEN_BUDGET_PER_TENANT", "100000"))
+# Model fallback chain (comma-separated, tried in order)
+LLM_MODEL_FALLBACK_CHAIN = os.getenv("LLM_MODEL_FALLBACK_CHAIN", "gpt-3.5-turbo,gpt-4,claude-3-haiku").split(",")
+# Semantic cache TTL for LLM prompts
+LLM_SEMANTIC_CACHE_TTL = int(os.getenv("LLM_SEMANTIC_CACHE_TTL", "86400"))
+
 FETCH_TIMEOUT = int(os.getenv("FETCH_TIMEOUT", "20"))
 SCHEDULER_HOURS = int(os.getenv("SCHEDULER_HOURS", "3"))
 HN_LIMIT = int(os.getenv("HN_LIMIT", "15"))

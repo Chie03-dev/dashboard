@@ -207,6 +207,19 @@ def _init_postgres(conn):
             """
         )
 
+        # Create llm_usage table for token budget tracking
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS llm_usage (
+                tenant_id UUID NOT NULL DEFAULT gen_random_uuid(),
+                month_start DATE NOT NULL,
+                tokens_used BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (tenant_id, month_start)
+            )
+            """
+        )
+
         # Create wishlist table with tenant_id
         cur.execute(
             """
@@ -321,6 +334,13 @@ def _init_sqlite(conn):
             url TEXT,
             fetched_at TEXT NOT NULL,
             archived_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS llm_usage (
+            tenant_id TEXT NOT NULL,
+            month_start TEXT NOT NULL,
+            tokens_used INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (tenant_id, month_start)
         );
         """
     )
