@@ -66,6 +66,39 @@ SYNC_MAX_RETRIES = int(os.getenv("SYNC_MAX_RETRIES", "3"))
 SYNC_RETRY_BASE_DELAY = float(os.getenv("SYNC_RETRY_BASE_DELAY", "2.0"))
 SYNC_RETRY_MAX_DELAY = float(os.getenv("SYNC_RETRY_MAX_DELAY", "60.0"))
 
+# Celery configuration
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL or "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL or "redis://localhost:6379/0")
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = "UTC"
+CELERY_ENABLE_UTC = True
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+
+# Celery Beat schedule (periodic tasks)
+CELERY_BEAT_SCHEDULE = {
+    "sync-games-every-3-hours": {
+        "task": "app.tasks.sync_games_task",
+        "schedule": 3 * 60 * 60,  # 3 hours in seconds
+        "options": {"queue": "sync"},
+    },
+    "sync-dev-every-3-hours": {
+        "task": "app.tasks.sync_dev_task",
+        "schedule": 3 * 60 * 60,
+        "options": {"queue": "sync"},
+    },
+    "build-digest-daily": {
+        "task": "app.tasks.build_digest_task",
+        "schedule": 24 * 60 * 60,  # Daily at midnight
+        "options": {"queue": "sync"},
+    },
+}
+
 # Auth/JWT
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
 JWT_ALGORITHM = "HS256"
