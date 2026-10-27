@@ -4,3 +4,5 @@ httpx
 apscheduler
 openai
 python-dotenv
+redis
+prometheus-client
