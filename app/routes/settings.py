@@ -1,20 +1,18 @@
 import time
-from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from app.routes.chat import resolve_llm
 
 router = APIRouter()
 
 
 class LLMTestIn(BaseModel):
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
-    model: Optional[str] = None
-    prompt: Optional[str] = None
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+    prompt: str | None = None
 
 
 @router.post("/llm/test")

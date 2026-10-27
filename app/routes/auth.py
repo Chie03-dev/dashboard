@@ -1,22 +1,18 @@
 import json
-from datetime import timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 
 from app.auth import (
-    create_access_token,
     create_token_pair,
     decode_token,
-    get_tenant_id_from_token,
     hash_password,
     refresh_access_token,
     set_tenant_context,
     verify_password,
 )
-from app.db import get_conn, _use_postgres
+from app.db import _use_postgres, get_conn
 
 router = APIRouter(tags=["auth"])
 
@@ -52,8 +48,8 @@ class TokenRefresh(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    tenant_slug: Optional[str] = None
-    tenant_name: Optional[str] = None
+    tenant_slug: str | None = None
+    tenant_name: str | None = None
 
 
 class UserLogin(BaseModel):

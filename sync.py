@@ -18,20 +18,22 @@ import sys
 import time
 import uuid
 
+from prometheus_client import CollectorRegistry, Counter, Histogram, push_to_gateway
+
 from app.config import SYNC_MAX_RETRIES, SYNC_RETRY_BASE_DELAY, SYNC_RETRY_MAX_DELAY
 from app.db import init_db
 from app.http_clients import close_all_clients
 from app.logging_conf import get_logger, set_correlation_id, setup_logging
-from app.services import ai, devfeed, games as games_service
-from prometheus_client import CollectorRegistry, Counter, Histogram, push_to_gateway
+from app.services import ai, devfeed
+from app.services import games as games_service
 
 # Try to import Celery tasks
 try:
     from app.tasks import (
-        sync_games_task,
-        sync_dev_task,
         build_digest_task,
         run_full_sync,
+        sync_dev_task,
+        sync_games_task,
     )
     CELERY_AVAILABLE = True
 except ImportError:

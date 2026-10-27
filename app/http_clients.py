@@ -2,7 +2,6 @@ import logging
 import time
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Optional
 
 import httpx
 from prometheus_client import Counter, Histogram
@@ -49,7 +48,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.half_open_requests = half_open_requests
         self.failures = 0
-        self.last_failure_time: Optional[float] = None
+        self.last_failure_time: float | None = None
         self.state = "closed"
         self.half_open_successes = 0
         self.lock = Lock()
@@ -98,7 +97,7 @@ class RateLimitedClient:
         base_url: str,
         rate_limit: int,
         rate_period: float = 60.0,
-        circuit_breaker: Optional[CircuitBreaker] = None,
+        circuit_breaker: CircuitBreaker | None = None,
         timeout: float = FETCH_TIMEOUT,
     ):
         self.base_url = base_url
@@ -107,7 +106,7 @@ class RateLimitedClient:
         self.client = httpx.Client(timeout=timeout)
         self.timeout = timeout
 
-    def _respect_retry_after(self, response: httpx.Response) -> Optional[float]:
+    def _respect_retry_after(self, response: httpx.Response) -> float | None:
         retry_after = response.headers.get("Retry-After")
         if retry_after:
             try:
@@ -186,12 +185,12 @@ class RateLimitedClient:
         self.close()
 
 
-_gamerpower_client: Optional[RateLimitedClient] = None
-_epic_client: Optional[RateLimitedClient] = None
-_hn_client: Optional[RateLimitedClient] = None
-_github_client: Optional[RateLimitedClient] = None
-_cheapshark_client: Optional[RateLimitedClient] = None
-_openmeteo_client: Optional[RateLimitedClient] = None
+_gamerpower_client: RateLimitedClient | None = None
+_epic_client: RateLimitedClient | None = None
+_hn_client: RateLimitedClient | None = None
+_github_client: RateLimitedClient | None = None
+_cheapshark_client: RateLimitedClient | None = None
+_openmeteo_client: RateLimitedClient | None = None
 
 
 def get_gamerpower_client() -> RateLimitedClient:

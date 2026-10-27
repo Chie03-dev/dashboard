@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.cache import get, set
-from app.fetchers.base import BaseFetcher, FetchResult, FetchStatus, FetcherConfig
+from app.fetchers.base import BaseFetcher, FetcherConfig, FetchResult, FetchStatus
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -69,7 +69,7 @@ class OpenMeteoFetcher(BaseFetcher):
                 duration_ms=duration_ms,
             )
     
-    def parse_item(self, item: Any) -> Optional[dict]:
+    def parse_item(self, item: Any) -> dict | None:
         return item
 
 

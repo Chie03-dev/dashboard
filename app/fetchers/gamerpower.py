@@ -1,22 +1,22 @@
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from app.cache import get, set
-from app.fetchers.base import BaseFetcher, FetchResult, FetchStatus, FetcherConfig
+from app.fetchers.base import BaseFetcher, FetcherConfig, FetchResult, FetchStatus
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
 
 
-def _parse_gp_date(s: str) -> Optional[str]:
+def _parse_gp_date(s: str) -> str | None:
     if not s or s == "N/A":
         return None
     try:
-        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
         return dt.isoformat()
     except Exception:
         try:
-            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(s)
             return dt.isoformat()
         except Exception:
             return None
@@ -96,7 +96,7 @@ class GamerPowerFetcher(BaseFetcher):
                 duration_ms=duration_ms,
             )
     
-    def parse_item(self, item: Any) -> Optional[dict]:
+    def parse_item(self, item: Any) -> dict | None:
         if not isinstance(item, dict):
             return None
         return {

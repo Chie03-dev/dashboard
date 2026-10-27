@@ -1,8 +1,8 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.cache import cache_key, get, set
-from app.config import CACHE_TTL_GAMES, FETCH_TIMEOUT
+from app.config import CACHE_TTL_GAMES
 from app.db import get_conn, now_iso
 from app.http_clients import get_epic_client, get_gamerpower_client
 
@@ -16,11 +16,11 @@ def _parse_gp_date(s):
     if not s or s == "N/A":
         return None
     try:
-        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
         return dt.isoformat()
     except Exception:
         try:
-            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(s)
             return dt.isoformat()
         except Exception:
             return None
@@ -127,7 +127,7 @@ def fetch_epic():
                     end = el.get("expiryDate")
                 if end:
                     try:
-                        dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+                        dt = datetime.fromisoformat(str(end))
                         end = dt.isoformat()
                     except Exception:
                         pass
@@ -278,17 +278,17 @@ def _parse_end(end):
     if not end:
         return None
     try:
-        dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(str(end))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except Exception:
         return None
 
 
 def _send_reminders(tenant_id: str):
-    from app.services import notifier
     from app.config import REMINDER_HOURS
+    from app.services import notifier
 
     conn = get_conn()
     try:
@@ -299,7 +299,7 @@ def _send_reminders(tenant_id: str):
     finally:
         conn.close()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window = now + timedelta(hours=REMINDER_HOURS)
     for row in rows:
         end = _parse_end(row["end_date"])

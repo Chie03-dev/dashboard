@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException, Header, Depends
+
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel
-from typing import Optional
 
 from app.auth import get_current_tenant
-from app.db import get_conn
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -12,28 +11,28 @@ router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 
 
 class GitHubWebhookPayload(BaseModel):
-    action: Optional[str] = None
-    repository: Optional[dict] = None
-    sender: Optional[dict] = None
+    action: str | None = None
+    repository: dict | None = None
+    sender: dict | None = None
     # Notification webhook
-    notification: Optional[dict] = None
+    notification: dict | None = None
 
 
 class EpicWebhookPayload(BaseModel):
-    eventType: Optional[str] = None
-    catalogNs: Optional[dict] = None
-    offerId: Optional[str] = None
+    eventType: str | None = None
+    catalogNs: dict | None = None
+    offerId: str | None = None
     # Free game promotion events
-    promotion: Optional[dict] = None
+    promotion: dict | None = None
 
 
 @router.post("/github")
 async def github_webhook(
     request: Request,
     payload: GitHubWebhookPayload,
-    x_github_event: Optional[str] = Header(None),
-    x_github_delivery: Optional[str] = Header(None),
-    x_hub_signature_256: Optional[str] = Header(None),
+    x_github_event: str | None = Header(None),
+    x_github_delivery: str | None = Header(None),
+    x_hub_signature_256: str | None = Header(None),
     tenant_id: str = Depends(get_current_tenant),
 ):
     """

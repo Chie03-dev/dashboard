@@ -1,13 +1,21 @@
-from app.fetchers.base import BaseFetcher, FetchResult, FetchStatus, FetcherConfig, FetcherRegistry, fetcher_registry, dead_letter_queue
-from app.fetchers.gamerpower import GamerPowerFetcher
-from app.fetchers.epic import EpicFetcher
-from app.fetchers.hackernews import HackerNewsFetcher
-from app.fetchers.github import GitHubFetcher
+from app.fetchers.base import (
+    BaseFetcher,
+    FetcherConfig,
+    FetcherRegistry,
+    FetchResult,
+    FetchStatus,
+    dead_letter_queue,
+    fetcher_registry,
+)
 from app.fetchers.cheapshark import CheapSharkFetcher
-from app.fetchers.openmeteo import OpenMeteoFetcher
-from app.fetchers.steam import SteamFetcher
+from app.fetchers.epic import EpicFetcher
+from app.fetchers.gamerpower import GamerPowerFetcher
+from app.fetchers.github import GitHubFetcher
 from app.fetchers.gog import GOGFetcher
+from app.fetchers.hackernews import HackerNewsFetcher
+from app.fetchers.openmeteo import OpenMeteoFetcher
 from app.fetchers.reddit import RedditFetcher
+from app.fetchers.steam import SteamFetcher
 
 # Register all fetchers
 fetcher_registry.register(GamerPowerFetcher, FetcherConfig(
@@ -94,19 +102,19 @@ fetcher_registry.register(RedditFetcher, FetcherConfig(
 
 __all__ = [
     "BaseFetcher",
+    "CheapSharkFetcher",
+    "EpicFetcher",
     "FetchResult",
     "FetchStatus",
     "FetcherConfig",
     "FetcherRegistry",
-    "fetcher_registry",
-    "dead_letter_queue",
-    "GamerPowerFetcher",
-    "EpicFetcher",
-    "HackerNewsFetcher",
-    "GitHubFetcher",
-    "CheapSharkFetcher",
-    "OpenMeteoFetcher",
-    "SteamFetcher",
     "GOGFetcher",
+    "GamerPowerFetcher",
+    "GitHubFetcher",
+    "HackerNewsFetcher",
+    "OpenMeteoFetcher",
     "RedditFetcher",
+    "SteamFetcher",
+    "dead_letter_queue",
+    "fetcher_registry",
 ]

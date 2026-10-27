@@ -1,15 +1,15 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Optional
-from enum import Enum
 import hashlib
 import json
 import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any
 
 from app.cache import cache_key, get, set
 from app.config import FETCH_TIMEOUT
-from app.http_clients import RateLimitedClient, CircuitBreaker
+from app.http_clients import CircuitBreaker, RateLimitedClient
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -26,10 +26,10 @@ class FetchStatus(Enum):
 class FetchResult:
     status: FetchStatus
     items: list[dict] = field(default_factory=list)
-    error: Optional[str] = None
-    etag: Optional[str] = None
-    last_modified: Optional[str] = None
-    content_hash: Optional[str] = None
+    error: str | None = None
+    etag: str | None = None
+    last_modified: str | None = None
+    content_hash: str | None = None
     cached: bool = False
     duration_ms: float = 0.0
 
@@ -116,8 +116,8 @@ class BaseFetcher(ABC):
             ),
             timeout=config.timeout,
         )
-        self._etag: Optional[str] = None
-        self._last_modified: Optional[str] = None
+        self._etag: str | None = None
+        self._last_modified: str | None = None
     
     def _get_conditional_headers(self) -> dict:
         """Get headers for conditional requests (ETag/If-Modified-Since)."""
@@ -140,26 +140,24 @@ class BaseFetcher(ABC):
     @abstractmethod
     def fetch(self) -> FetchResult:
         """Fetch data from source. Must be implemented by subclasses."""
-        pass
     
     @abstractmethod
-    def parse_item(self, raw_item: Any) -> Optional[dict]:
+    def parse_item(self, raw_item: Any) -> dict | None:
         """Parse raw item into standardized format."""
-        pass
     
     def get_cache_key(self, suffix: str = "") -> str:
         return cache_key("fetcher", self.config.name, suffix)
     
-    def get_etag(self) -> Optional[str]:
+    def get_etag(self) -> str | None:
         return self._etag
     
-    def get_last_modified(self) -> Optional[str]:
+    def get_last_modified(self) -> str | None:
         return self._last_modified
     
-    def set_etag(self, etag: Optional[str]):
+    def set_etag(self, etag: str | None):
         self._etag = etag
     
-    def set_last_modified(self, lm: Optional[str]):
+    def set_last_modified(self, lm: str | None):
         self._last_modified = lm
     
     def compute_content_hash(self, items: list[dict]) -> str:
@@ -212,7 +210,7 @@ class BaseFetcher(ABC):
                     time.sleep(min(delay, 60))
         
         # All retries failed - add to dead letter queue
-        from app.fetchers.base import dead_letter_queue, DeadLetterEntry
+        from app.fetchers.base import DeadLetterEntry, dead_letter_queue
         entry = DeadLetterEntry(
             fetcher_name=self.config.name,
             error=str(last_error),
@@ -249,7 +247,7 @@ class FetcherRegistry:
         self._fetchers[config.name] = fetcher
         logger.info("Registered fetcher: %s", config.name)
     
-    def get(self, name: str) -> Optional[BaseFetcher]:
+    def get(self, name: str) -> BaseFetcher | None:
         return self._fetchers.get(name)
     
     def get_all(self) -> list[BaseFetcher]:
@@ -258,7 +256,7 @@ class FetcherRegistry:
     def get_enabled(self) -> list[BaseFetcher]:
         return [f for f in self._fetchers.values() if f.config.enabled]
     
-    def get_config(self, name: str) -> Optional[FetcherConfig]:
+    def get_config(self, name: str) -> FetcherConfig | None:
         return self._configs.get(name)
     
     def run_all(self) -> dict[str, FetchResult]:

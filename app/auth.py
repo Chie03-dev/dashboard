@@ -1,7 +1,6 @@
 import logging
 from contextvars import ContextVar
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -19,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-current_tenant_id_var: ContextVar[Optional[str]] = ContextVar("current_tenant_id", default=None)
-current_user_id_var: ContextVar[Optional[str]] = ContextVar("current_user_id", default=None)
+current_tenant_id_var: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
+current_user_id_var: ContextVar[str | None] = ContextVar("current_user_id", default=None)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -33,24 +32,24 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(UTC) + timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return payload
@@ -70,7 +69,7 @@ def create_token_pair(user_id: str, tenant_id: str, email: str, role: str) -> di
     }
 
 
-def refresh_access_token(refresh_token: str) -> Optional[dict]:
+def refresh_access_token(refresh_token: str) -> dict | None:
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         return None
@@ -83,7 +82,7 @@ def refresh_access_token(refresh_token: str) -> Optional[dict]:
     return create_token_pair(user_id, tenant_id, email, role)
 
 
-def get_tenant_id_from_token(token: str) -> Optional[str]:
+def get_tenant_id_from_token(token: str) -> str | None:
     payload = decode_token(token)
     if payload:
         return payload.get("tenant_id")
@@ -105,7 +104,7 @@ async def get_current_tenant(token: str = Depends(oauth2_scheme)):
     return payload.get("tenant_id")
 
 
-def set_tenant_context(tenant_id: str, user_id: Optional[str] = None):
+def set_tenant_context(tenant_id: str, user_id: str | None = None):
     current_tenant_id_var.set(tenant_id)
     if user_id:
         current_user_id_var.set(user_id)

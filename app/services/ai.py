@@ -1,20 +1,21 @@
-import logging
-from datetime import date
 import hashlib
 import json
+import logging
+from datetime import date
+from typing import Optional
+
+from openai import OpenAI
 
 from app.cache import cache_key, get, set
 from app.config import (
     CACHE_TTL_DIGEST,
     LLM_API_KEY,
     LLM_BASE_URL,
-    LLM_MODEL,
-    LLM_TOKEN_BUDGET_PER_TENANT,
     LLM_MODEL_FALLBACK_CHAIN,
     LLM_SEMANTIC_CACHE_TTL,
+    LLM_TOKEN_BUDGET_PER_TENANT,
 )
 from app.db import get_conn, now_iso
-from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 

@@ -1,29 +1,28 @@
 from celery import Celery
-from celery.schedules import crontab
 from celery.signals import (
+    task_failure,
+    task_postrun,
+    task_prerun,
+    task_retry,
     worker_ready,
     worker_shutdown,
-    task_prerun,
-    task_postrun,
-    task_failure,
-    task_retry,
 )
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Gauge, Histogram
 
 from app.config import (
-    CELERY_BROKER_URL,
-    CELERY_RESULT_BACKEND,
-    CELERY_TASK_SERIALIZER,
-    CELERY_RESULT_SERIALIZER,
     CELERY_ACCEPT_CONTENT,
-    CELERY_TIMEZONE,
-    CELERY_ENABLE_UTC,
-    CELERY_TASK_TRACK_STARTED,
-    CELERY_TASK_TIME_LIMIT,
-    CELERY_TASK_SOFT_TIME_LIMIT,
-    CELERY_WORKER_PREFETCH_MULTIPLIER,
-    CELERY_WORKER_MAX_TASKS_PER_CHILD,
     CELERY_BEAT_SCHEDULE,
+    CELERY_BROKER_URL,
+    CELERY_ENABLE_UTC,
+    CELERY_RESULT_BACKEND,
+    CELERY_RESULT_SERIALIZER,
+    CELERY_TASK_SERIALIZER,
+    CELERY_TASK_SOFT_TIME_LIMIT,
+    CELERY_TASK_TIME_LIMIT,
+    CELERY_TASK_TRACK_STARTED,
+    CELERY_TIMEZONE,
+    CELERY_WORKER_MAX_TASKS_PER_CHILD,
+    CELERY_WORKER_PREFETCH_MULTIPLIER,
 )
 
 # Prometheus metrics for Celery

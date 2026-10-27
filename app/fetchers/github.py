@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.cache import get, set
 from app.config import GITHUB_TOKEN
-from app.fetchers.base import BaseFetcher, FetchResult, FetchStatus, FetcherConfig
+from app.fetchers.base import BaseFetcher, FetcherConfig, FetchResult, FetchStatus
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -72,7 +72,7 @@ class GitHubFetcher(BaseFetcher):
                 duration_ms=duration_ms,
             )
     
-    def parse_item(self, n: Any) -> Optional[dict]:
+    def parse_item(self, n: Any) -> dict | None:
         if not isinstance(n, dict):
             return None
         subject = n.get("subject") or {}

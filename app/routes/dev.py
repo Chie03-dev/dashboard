@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.auth import get_current_tenant
 from app.db import get_conn

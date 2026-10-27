@@ -3,9 +3,8 @@ import logging
 import sys
 import uuid
 from contextvars import ContextVar
-from typing import Any, Optional
 
-correlation_id_var: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)
+correlation_id_var: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
 
 class JSONFormatter(logging.Formatter):
@@ -47,11 +46,11 @@ def setup_logging(json_format: bool = False, level: int = logging.INFO):
     root.setLevel(level)
 
 
-def get_correlation_id() -> Optional[str]:
+def get_correlation_id() -> str | None:
     return correlation_id_var.get()
 
 
-def set_correlation_id(cid: Optional[str] = None) -> str:
+def set_correlation_id(cid: str | None = None) -> str:
     if cid is None:
         cid = str(uuid.uuid4())[:8]
     correlation_id_var.set(cid)

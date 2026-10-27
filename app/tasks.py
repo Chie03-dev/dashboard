@@ -1,18 +1,45 @@
-import logging
 import time
+from typing import Callable, Any
+
 from celery import shared_task
-from celery.exceptions import MaxRetriesExceededError
 
 from app.config import SYNC_MAX_RETRIES, SYNC_RETRY_BASE_DELAY, SYNC_RETRY_MAX_DELAY
 from app.db import init_db
-from app.fetchers import fetcher_registry, dead_letter_queue
-from app.http_clients import close_all_clients
+from app.fetchers import dead_letter_queue, fetcher_registry
 from app.logging_conf import get_logger, set_correlation_id, setup_logging
-from app.services import ai, notifier
 
 # Setup logging for Celery workers
 setup_logging(json_format=True)
 logger = get_logger("celery.tasks")
+
+
+def retry_with_backoff(func: Callable, *args, max_retries: int = 3, base_delay: float = 2.0, max_delay: float = 60.0, **kwargs) -> Any:
+    """Execute a function with exponential backoff retry logic."""
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = min(base_delay * (2**attempt), max_delay)
+                logger.warning(
+                    "Attempt %d/%d failed for %s: %s. Retrying in %.1fs",
+                    attempt + 1,
+                    max_retries,
+                    func.__name__,
+                    e,
+                    delay,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    "All %d attempts failed for %s: %s",
+                    max_retries,
+                    func.__name__,
+                    e,
+                )
+    raise last_exception
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=600, retry_jitter=True)
