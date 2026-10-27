@@ -1,14 +1,14 @@
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 from app.cache import get, set
-from app.fetchers.base import BaseFetcher, FetchResult, FetchStatus, FetcherConfig
+from app.fetchers.base import BaseFetcher, FetcherConfig, FetchResult, FetchStatus
 from app.logging_conf import get_logger
 
 logger = get_logger(__name__)
 
 
-def _epic_slug(el: dict) -> Optional[str]:
+def _epic_slug(el: dict) -> str | None:
     for key in ("catalogNs",):
         mappings = (el.get(key) or {}).get("mappings") or []
         for m in mappings:
@@ -81,7 +81,7 @@ class EpicFetcher(BaseFetcher):
                 duration_ms=duration_ms,
             )
     
-    def parse_item(self, el: Any) -> Optional[dict]:
+    def parse_item(self, el: Any) -> dict | None:
         if not isinstance(el, dict):
             return None
         
@@ -116,7 +116,7 @@ class EpicFetcher(BaseFetcher):
                 end = el.get("expiryDate")
             if end:
                 try:
-                    dt = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+                    dt = datetime.fromisoformat(str(end))
                     end = dt.isoformat()
                 except Exception:
                     pass

@@ -1,9 +1,8 @@
 import logging
-import os
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Generator, Optional
 from urllib.parse import urlparse
 
 from app.config import (
@@ -17,13 +16,12 @@ from app.config import (
 logger = logging.getLogger(__name__)
 
 _use_postgres = bool(EFFECTIVE_DATABASE_URL)
-_pg_pool: Optional[object] = None
+_pg_pool: object | None = None
 
 
 def _get_pg_pool():
     global _pg_pool
     if _pg_pool is None and _use_postgres:
-        import psycopg2
         from psycopg2.pool import ThreadedConnectionPool
 
         parsed = urlparse(EFFECTIVE_DATABASE_URL)
@@ -105,7 +103,7 @@ def get_conn_ctx() -> Generator:
         conn.close()
 
 
-def get_current_tenant_id() -> Optional[str]:
+def get_current_tenant_id() -> str | None:
     """Get current tenant ID from context variable."""
     from app.auth import current_tenant_id_var
     return current_tenant_id_var.get() or DEFAULT_TENANT_ID

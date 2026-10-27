@@ -4,7 +4,15 @@ from email.message import EmailMessage
 
 import httpx
 
-from app.config import NTFY_URL, SMTP_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_TO, SMTP_USER
+from app.config import (
+    NTFY_URL,
+    SMTP_FROM,
+    SMTP_HOST,
+    SMTP_PASS,
+    SMTP_PORT,
+    SMTP_TO,
+    SMTP_USER,
+)
 
 logger = logging.getLogger(__name__)
 

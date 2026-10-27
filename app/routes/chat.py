@@ -1,6 +1,6 @@
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 
 from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 
@@ -9,13 +9,13 @@ router = APIRouter()
 
 class ChatIn(BaseModel):
     messages: list[dict]
-    model: Optional[str] = None
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    system_prompt: Optional[str] = None
-    timeout: Optional[int] = None
+    model: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    system_prompt: str | None = None
+    timeout: int | None = None
 
 
 def resolve_llm(base_url=None, api_key=None, model=None):

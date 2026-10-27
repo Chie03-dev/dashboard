@@ -1,7 +1,6 @@
 import json
 import logging
-import os
-from typing import Any, Optional
+from typing import Any
 
 import redis
 
@@ -9,11 +8,11 @@ from app.config import REDIS_URL
 
 logger = logging.getLogger(__name__)
 
-_redis_client: Optional[redis.Redis] = None
+_redis_client: redis.Redis | None = None
 _redis_available = False
 
 
-def get_redis() -> Optional[redis.Redis]:
+def get_redis() -> redis.Redis | None:
     global _redis_client, _redis_available
     if _redis_client is not None:
         return _redis_client
@@ -39,7 +38,7 @@ def is_available() -> bool:
     return _redis_available
 
 
-def get(key: str) -> Optional[Any]:
+def get(key: str) -> Any | None:
     client = get_redis()
     if not client:
         return None

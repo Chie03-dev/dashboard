@@ -1,21 +1,20 @@
-import logging
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from app.auth import clear_tenant_context, set_tenant_context
 from app.cache import is_available as redis_available
 from app.config import REDIS_URL
 from app.db import close_pool, get_conn, init_db
 from app.http_clients import close_all_clients
-from app.logging_conf import set_correlation_id, get_logger, setup_logging
-from app.routes import auth, chat, dev, digest, games, settings, webhooks
+from app.logging_conf import get_logger, set_correlation_id, setup_logging
+from app.routes import chat, dev, digest, games, settings, webhooks
 from app.telemetry import setup_tracing
 
 setup_logging(json_format=False)
@@ -78,9 +77,7 @@ async def spa_fallback_middleware(request: Request, call_next):
     # If route not found (404) and it's a GET request for a non-API path, serve index.html
     if response.status_code == 404 and request.method == "GET":
         path = request.url.path
-        if not (path.startswith("/api/") or path.startswith("/static/") or 
-                path in ("/healthz", "/metrics", "/docs", "/redoc", "/openapi.json") or
-                path.startswith("/docs/") or path.startswith("/redoc/")):
+        if not (path.startswith(("/api/", "/static/", "/docs/", "/redoc/")) or path in ("/healthz", "/metrics", "/docs", "/redoc", "/openapi.json")):
             index_path = os.path.join("static", "index.html")
             if os.path.exists(index_path):
                 return FileResponse(index_path)
@@ -133,8 +130,10 @@ def metrics():
 
 
 # Manually include auth routes (workaround for FastAPI 0.162.0 router inclusion bug)
-from app.routes import auth as auth_routes
 from fastapi.routing import APIRoute
+
+from app.routes import auth as auth_routes
+
 for route in auth_routes.router.routes:
     if isinstance(route, APIRoute):
         # Create new route with prefix
